@@ -1,11 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../api/evgo_api.dart';
 import '../api/models.dart';
 import '../brand.dart';
+import 'charging_session_screen.dart';
 
 /// Landing page after login: two big choices (a bus ticket or a charge),
-/// then the user's upcoming trips.
+/// then the user's trips: a running charge (live), upcoming bus tickets, recent charging.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
@@ -13,6 +16,7 @@ class HomeScreen extends StatefulWidget {
     required this.onBookTicket,
     required this.onCharge,
     required this.onWallet,
+    this.liveEvery = const Duration(seconds: 5),
   });
 
   final EvgoApi api;
@@ -20,6 +24,7 @@ class HomeScreen extends StatefulWidget {
 
   final VoidCallback onCharge;
   final VoidCallback onWallet;
+  final Duration liveEvery;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -28,6 +33,45 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<BookingSummary>> _bookings = widget.api.myBookings();
   late final Future<WalletSummary> _wallet = widget.api.wallet();
+  List<ChargingSessionView> _sessions = const [];
+  Timer? _live;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCharging();
+  }
+
+  @override
+  void dispose() {
+    _live?.cancel();
+    super.dispose();
+  }
+
+  /// Charging sessions for "Your trips"; while one is running, refresh it every few seconds.
+  Future<void> _loadCharging() async {
+    try {
+      final list = await widget.api.recentCharging();
+      if (!mounted) return;
+      setState(() {
+        _sessions = list;
+      });
+      final running = list.any((s) => s.isActive);
+      if (running && _live == null) {
+        _live = Timer.periodic(widget.liveEvery, (_) => _loadCharging());
+      } else if (!running) {
+        _live?.cancel();
+        _live = null;
+      }
+    } on ApiException {
+      // Bookings still show; charging can come back on the next visit.
+    }
+  }
+
+  Future<void> _openSession(ChargingSessionView s) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ChargingSessionScreen(api: widget.api, initial: s)));
+    _loadCharging();
+  }
 
   Future<void> _cancel(BookingSummary b) async {
     try {
@@ -85,17 +129,21 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, snap) {
             if (snap.connectionState != ConnectionState.done) return const LinearProgressIndicator();
             final bookings = (snap.data ?? []).where((b) => b.status == 'PAID').toList();
-            if (bookings.isEmpty) {
+            final running = _sessions.where((s) => s.isActive).toList();
+            final done = _sessions.where((s) => !s.isActive).take(3).toList();
+            if (bookings.isEmpty && _sessions.isEmpty) {
               return const Card(
                 child: ListTile(
                   leading: Icon(Icons.event_seat_outlined),
-                  title: Text('No upcoming trips yet'),
+                  title: Text('No trips or charging yet'),
                   subtitle: Text('Your bus tickets and charging sessions will show here.'),
                 ),
               );
             }
             return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                for (final s in running) _LiveChargingCard(session: s, onTap: () => _openSession(s)),
                 for (final b in bookings)
                   Card(
                     child: ListTile(
@@ -105,11 +153,93 @@ class _HomeScreenState extends State<HomeScreen> {
                       trailing: TextButton(onPressed: () => _cancel(b), child: const Text('Cancel')),
                     ),
                   ),
+                if (done.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text('Recent charging', style: text.titleSmall?.copyWith(color: Colors.black54)),
+                  const SizedBox(height: 4),
+                  for (final s in done)
+                    Card(
+                      child: ListTile(
+                        key: Key('recent-${s.id}'),
+                        onTap: () => _openSession(s),
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0x1A1FAA6E),
+                          foregroundColor: Brand.green,
+                          child: Icon(Icons.ev_station),
+                        ),
+                        title: Text(s.placeName),
+                        subtitle: Text('${_when(s.startedAt)} · ${s.energyKwh.toStringAsFixed(1)} kWh'
+                            '${s.paidByUpi ? ' · Paid by UPI' : ' · Wallet'}'),
+                        trailing: Text(rupees(s.costPaise), style: const TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                ],
               ],
             );
           },
         ),
       ],
+    );
+  }
+}
+
+String _when(DateTime t) {
+  final l = t.toLocal();
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${l.day} ${months[l.month - 1]}, ${l.hour.toString().padLeft(2, '0')}:${l.minute.toString().padLeft(2, '0')}';
+}
+
+/// The running charging session, live on Home: energy, cost, power. Tap for the full screen with Stop.
+class _LiveChargingCard extends StatelessWidget {
+  const _LiveChargingCard({required this.session, required this.onTap});
+  final ChargingSessionView session;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = session;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: const Key('home-live-charging'),
+          onTap: onTap,
+          child: Ink(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(gradient: LinearGradient(colors: [Brand.green, Brand.lime])),
+            child: Row(
+              children: [
+                const CircleAvatar(backgroundColor: Colors.white24, foregroundColor: Colors.white, child: Icon(Icons.bolt)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Charging now · ${s.placeName}',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${s.energyKwh.toStringAsFixed(2)} kWh · ${rupees(s.costPaise)} · ${s.powerKw.toStringAsFixed(0)} kW',
+                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                      ),
+                      if (s.paidByUpi && s.blockedPaise != null)
+                        Text('${rupees(s.blockedPaise!)} held by UPI · tap to stop',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12))
+                      else
+                        const Text('Tap to see it live or stop', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.white),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

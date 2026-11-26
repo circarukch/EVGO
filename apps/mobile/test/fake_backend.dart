@@ -180,6 +180,7 @@ class FakeBackend {
       }
       return json({'block': block, 'session': _session()}, 201);
     }
+    if (path == '/charging/sessions' && req.method == 'GET') return json({'sessions': session == null ? [] : [_session()]});
     if (path == '/charging/sessions/active') return json({'session': session?['status'] == 'ACTIVE' ? _session() : null});
     if (path == '/charging/sessions/s1') {
       session!['energyWh'] = (session!['energyWh'] as int) + 1500;

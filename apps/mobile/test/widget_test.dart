@@ -50,7 +50,7 @@ void main() {
     }
     expect(find.text('Want a ticket?'), findsOneWidget);
     expect(find.text('Want to charge your EV?'), findsOneWidget);
-    await scrollTo(tester, 'No upcoming trips yet');
+    await scrollTo(tester, 'No trips or charging yet');
   });
 
   testWidgets('books a seat, tops up the shortfall, and shows the ticket and trip', (tester) async {
@@ -252,6 +252,41 @@ void main() {
     expect(find.text('Released to your bank'), findsOneWidget);
     expect(find.text('₹473'), findsOneWidget); // ₹500 held − ₹27 used
     expect(backend.balancePaise, 0);
+  });
+
+  testWidgets('Home shows a running charge live, and recent charging after it stops', (tester) async {
+    await startByUpi(tester);
+    await tester.tap(find.byKey(const Key('mock-upi-approve')));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    // Leave the live screen running and go Home.
+    await tester.pageBack();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Home'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await scrollTo(tester, 'Your trips');
+    expect(find.byKey(const Key('home-live-charging')), findsOneWidget);
+    expect(find.text('Charging now · Guntur EVGO Hub'), findsOneWidget);
+    expect(find.text('₹500 held by UPI · tap to stop'), findsOneWidget);
+    expect(find.text('No trips or charging yet'), findsNothing);
+
+    // Tap it: the live screen, with Stop.
+    await tester.tap(find.byKey(const Key('home-live-charging')));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Stop charging'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.widgetWithText(FilledButton, 'Stop'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Done'));
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    expect(find.byKey(const Key('home-live-charging')), findsNothing);
+    expect(find.text('Recent charging'), findsOneWidget);
+    expect(find.byKey(const Key('recent-s1')), findsOneWidget);
   });
 
   testWidgets('a declined UPI request does not start charging', (tester) async {

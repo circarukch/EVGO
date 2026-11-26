@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { AuthGuard, AuthUser, CurrentUser } from "../auth/auth.guard";
 import { ChargingService } from "./charging.service";
 
@@ -44,6 +44,12 @@ export class ChargingController {
   @Post()
   start(@CurrentUser() user: AuthUser, @Body() body: { chargePointId: string; connectorId: number }) {
     return this.charging.start(user.id, body?.chargePointId, Number(body?.connectorId));
+  }
+
+  /** Latest sessions, the running one first (Home's "Your trips"). */
+  @Get()
+  recent(@CurrentUser() user: AuthUser, @Query("limit") limit?: string) {
+    return this.charging.recent(user.id, limit ? Number(limit) : 5);
   }
 
   @Get("active")

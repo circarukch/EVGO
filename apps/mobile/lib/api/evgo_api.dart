@@ -132,6 +132,12 @@ class EvgoApi {
   Future<void> mockUpiDecision(String blockId, {required bool approve}) async =>
       _post('/charging/upi-blocks/$blockId/${approve ? 'mock-approve' : 'mock-decline'}');
 
+  /// Latest sessions, the running one first.
+  Future<List<ChargingSessionView>> recentCharging() async {
+    final r = await _get('/charging/sessions') as Map<String, dynamic>;
+    return [for (final s in r['sessions'] as List) ChargingSessionView.fromJson(s as Map<String, dynamic>)];
+  }
+
   Future<ChargingSessionView?> activeCharging() async {
     final r = await _get('/charging/sessions/active') as Map<String, dynamic>;
     final s = r['session'];

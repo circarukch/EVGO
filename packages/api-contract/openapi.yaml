@@ -110,6 +110,16 @@ paths:
         "404": { description: Unknown charger or connector }
         "409": { description: Connector busy or out of service, or a session already running }
         "503": { description: Charger did not respond, or app charging not switched on }
+    get:
+      summary: The user's latest charging sessions, the running one first (for Home)
+      security: [{ bearer: [] }]
+      parameters: [{ name: limit, in: query, schema: { type: integer, default: 5, maximum: 20 } }]
+      responses:
+        "200":
+          description: Sessions
+          content:
+            application/json:
+              schema: { type: object, properties: { sessions: { type: array, items: { $ref: "#/components/schemas/ChargingSession" } } } }
   /charging/sessions/active:
     get:
       summary: The caller's running session, if any

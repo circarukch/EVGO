@@ -265,6 +265,17 @@ export class ChargingService {
     };
   }
 
+  /** The user's latest sessions, running one first, for Home. */
+  async recent(userId: string, limit = 5) {
+    const rows = await this.db.chargingSession.findMany({
+      where: { userId },
+      orderBy: [{ status: "asc" }, { startedAt: "desc" }],
+      take: Math.min(Math.max(limit, 1), 20),
+      select: { id: true },
+    });
+    return { sessions: await Promise.all(rows.map((r) => this.view(userId, r.id))) };
+  }
+
   async active(userId: string) {
     const s = await this.db.chargingSession.findFirst({ where: { userId, status: "ACTIVE" } });
     return { session: s ? await this.view(userId, s.id) : null };
