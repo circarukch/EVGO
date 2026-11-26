@@ -15,6 +15,9 @@ class FakeBackend {
   final history = <Map<String, dynamic>>[];
   bool loggedIn = false;
 
+  /// The second test customer.
+  static const otherPhone = '9123456780';
+
   late final MockClient client = MockClient((req) async {
     final path = req.url.path.replaceFirst('/v1', '');
     final body = req.body.isEmpty ? <String, dynamic>{} : jsonDecode(req.body) as Map<String, dynamic>;
@@ -22,16 +25,35 @@ class FakeBackend {
         http.Response(jsonEncode(o), status, headers: {'content-type': 'application/json; charset=utf-8'});
 
     if (path == '/auth/otp/request') {
-      if (body['phone'] != '9876543210') return json({'message': 'Enter a valid 10-digit Indian mobile number'}, 400);
-      return json({'phone': '+919876543210', 'expiresInSec': 300, 'devCode': '123456'});
+      if (body['phone'] != '9876543210' && body['phone'] != otherPhone)
+        return json({'message': 'Enter a valid 10-digit Indian mobile number'}, 400);
+      return json({'phone': '+91${body['phone']}', 'expiresInSec': 300, 'devCode': '123456'});
     }
     if (path == '/auth/otp/verify') {
       if (body['code'] != '123456') return json({'message': 'Wrong code'}, 401);
       loggedIn = true;
+      if (body['phone'] == otherPhone) {
+        return json({
+          'accessToken': 'tok2',
+          'user': {'id': 'u2', 'phone': '+91$otherPhone'}
+        });
+      }
       return json({
         'accessToken': 'tok',
         'user': {'id': 'u1', 'phone': '+919876543210'}
       });
+    }
+    // A second customer with nothing yet: the server only ever returns their own (empty) data.
+    if (req.headers['authorization'] == 'Bearer tok2') {
+      if (path == '/wallet') return json({'balancePaise': 0, 'history': []});
+      if (path == '/bookings' && req.method == 'GET') return json([]);
+      if (path == '/charging/sessions' && req.method == 'GET') return json({'sessions': []});
+      if (path == '/charging/sessions/active') return json({'session': null});
+      if (path.startsWith('/trips') || path.startsWith('/chargers')) {
+        // shared catalogue: fall through
+      } else {
+        return json({'message': 'Not available for this test user'}, 404);
+      }
     }
     if (req.headers['authorization'] != 'Bearer tok' && !path.startsWith('/trips') && !path.startsWith('/chargers')) {
       return json({'message': 'Log in first'}, 401);

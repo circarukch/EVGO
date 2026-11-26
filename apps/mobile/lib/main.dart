@@ -23,10 +23,15 @@ class EvgoApp extends StatefulWidget {
 }
 
 class _EvgoAppState extends State<EvgoApp> {
+  final _navigator = GlobalKey<NavigatorState>();
+
   @override
   void initState() {
     super.initState();
     widget.api.onLoggedOut = () {
+      // Close every screen opened on top (a ticket, a charging session…) so nothing of the
+      // signed-out user stays on screen under the login page.
+      _navigator.currentState?.popUntil((route) => route.isFirst);
       if (mounted) setState(() {});
     };
   }
@@ -36,9 +41,11 @@ class _EvgoAppState extends State<EvgoApp> {
     return MaterialApp(
       title: 'EVGO',
       theme: Brand.theme(),
+      navigatorKey: _navigator,
       home: widget.api.token == null
           ? LoginScreen(api: widget.api, onLoggedIn: () => setState(() {}))
-          : AppShell(api: widget.api),
+          // Keyed by account: a different login starts from fresh screens with nothing kept from before.
+          : AppShell(key: ValueKey('shell-${widget.api.token}'), api: widget.api),
     );
   }
 }

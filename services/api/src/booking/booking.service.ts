@@ -176,6 +176,9 @@ export class BookingService {
   /** Mock gateway only: stand in for the customer paying on the checkout. */
   async mockPayCheckout(userId: string, orderId: string, method = "upi") {
     if (!config.mockPayments || !(this.gateway instanceof MockPaymentGateway)) throw new NotFoundException();
+    const order = await this.db.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException("Booking not found");
+    if (order.userId !== userId) throw new ForbiddenException();
     const pending = await this.db.payment.findFirst({ where: { orderId, status: "PENDING", gatewayRef: { not: null } }, orderBy: { createdAt: "desc" } });
     if (!pending) throw new NotFoundException("No payment waiting");
     this.gateway.pay(pending.gatewayRef!, method);

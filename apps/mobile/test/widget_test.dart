@@ -17,9 +17,9 @@ void main() {
     api = EvgoApi(baseUrl: 'http://test/v1', client: backend.recordingClient);
   });
 
-  Future<void> logIn(WidgetTester tester) async {
-    await tester.pumpWidget(EvgoApp(api: api));
-    await tester.enterText(find.byType(TextField).first, '9876543210');
+  Future<void> logIn(WidgetTester tester, {String phone = '9876543210', bool fresh = true}) async {
+    if (fresh) await tester.pumpWidget(EvgoApp(api: api));
+    await tester.enterText(find.byType(TextField).first, phone);
     await tester.tap(find.text('Send code'));
     await tester.pumpAndSettle();
     expect(find.text('Test server code: 123456'), findsOneWidget);
@@ -358,6 +358,63 @@ void main() {
     expect(find.byKey(const Key('home-live-charging')), findsNothing);
     expect(find.text('Recent charging'), findsOneWidget);
     expect(find.byKey(const Key('recent-s1')), findsOneWidget);
+  });
+
+  Future<void> logOutFromMenu(WidgetTester tester) async {
+    await tester.tap(find.byTooltip('Account'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Log out').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Log out'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('a different number that logs in sees none of the previous user\'s charging, trips or wallet', (tester) async {
+    await startByUpi(tester);
+    await tester.tap(find.byKey(const Key('mock-upi-approve')));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    await tester.tap(find.text('Stop charging'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.widgetWithText(FilledButton, 'Stop'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Done'));
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    await tester.tap(find.text('Home'));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, 'Recent charging');
+    expect(find.byKey(const Key('recent-s1')), findsOneWidget);
+
+    await logOutFromMenu(tester);
+    await logIn(tester, phone: FakeBackend.otherPhone, fresh: false);
+    expect(api.phone, '+91${FakeBackend.otherPhone}');
+    await scrollTo(tester, 'No trips or charging yet');
+    expect(find.text('No trips or charging yet'), findsOneWidget);
+    expect(find.text('Recent charging'), findsNothing);
+    expect(find.byKey(const Key('recent-s1')), findsNothing);
+    await tester.tap(find.text('Wallet'));
+    await tester.pumpAndSettle();
+    expect(find.text('₹0'), findsOneWidget);
+    expect(find.text('No transactions yet'), findsOneWidget);
+  });
+
+  testWidgets('when the session ends, screens opened on top close and nothing of the user stays behind the login page', (tester) async {
+    await startByUpi(tester);
+    await tester.tap(find.byKey(const Key('mock-upi-approve')));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    expect(find.text('Stop charging'), findsOneWidget); // live charging screen is open on top
+    api.token = 'expired';
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    expect(find.text('Send code'), findsOneWidget);
+    expect(find.text('Stop charging'), findsNothing);
+    expect(find.byType(BackButton), findsNothing);
   });
 
   testWidgets('a declined UPI request does not start charging', (tester) async {
