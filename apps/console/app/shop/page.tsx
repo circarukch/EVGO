@@ -1,11 +1,11 @@
-import { adminFetch } from "../../lib/api";
+import { adminFetch, orNull } from "../../lib/api";
 import { ChargerProduct, inr } from "../../lib/shop";
 
 export const dynamic = "force-dynamic";
 
 export default async function ShopPage({ searchParams }: { searchParams: Promise<{ saved?: string }> }) {
   const { saved } = await searchParams;
-  const res = await adminFetch("/admin/shop/products").catch(() => null);
+  const res = await adminFetch("/admin/shop/products").catch(orNull);
   if (!res?.ok) return <p className="error">Could not reach the EVGO API.</p>;
   const products: ChargerProduct[] = await res.json();
   const samples = products.filter((p) => p.isSample).length;

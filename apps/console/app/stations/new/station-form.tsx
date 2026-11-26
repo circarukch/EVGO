@@ -14,7 +14,7 @@ export function coordsFrom(text: string): { lat: number; lng: number } | null {
   return null;
 }
 
-export function StationForm({ operators }: { operators: { id: string; name: string }[] }) {
+export function StationForm({ operators, canAddOperator }: { operators: { id: string; name: string }[]; canAddOperator: boolean }) {
   const [state, submit, saving] = useActionState<FormState, FormData>(createStation, {});
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
@@ -71,7 +71,7 @@ export function StationForm({ operators }: { operators: { id: string; name: stri
           {operators.map((o) => (
             <option key={o.id} value={o.id}>{o.name}</option>
           ))}
-          <option value="__new">New third-party operator…</option>
+          {canAddOperator && <option value="__new">New third-party operator…</option>}
         </select>
         {operator === "__new" && (
           <label>

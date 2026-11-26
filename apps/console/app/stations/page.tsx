@@ -1,4 +1,4 @@
-import { adminFetch, Station } from "../../lib/api";
+import { adminFetch, orNull, Station } from "../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -6,8 +6,8 @@ async function load(): Promise<Station[] | null> {
   try {
     const res = await adminFetch("/admin/stations");
     return res.ok ? res.json() : null;
-  } catch {
-    return null;
+  } catch (e) {
+    return orNull(e);
   }
 }
 

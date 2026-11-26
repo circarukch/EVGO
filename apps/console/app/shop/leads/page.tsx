@@ -1,4 +1,4 @@
-import { adminFetch } from "../../../lib/api";
+import { adminFetch, orNull } from "../../../lib/api";
 import { ChargerLead, LEAD_LABEL, LEAD_STATUSES, LeadStatus } from "../../../lib/shop";
 import { StatusSelect } from "./status-select";
 
@@ -10,7 +10,7 @@ const when = (iso: string) =>
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const { status } = await searchParams;
   const filter = LEAD_STATUSES.includes(status as LeadStatus) ? (status as LeadStatus) : undefined;
-  const res = await adminFetch(`/admin/shop/leads${filter ? `?status=${filter}` : ""}`).catch(() => null);
+  const res = await adminFetch(`/admin/shop/leads${filter ? `?status=${filter}` : ""}`).catch(orNull);
   if (!res?.ok) return <p className="error">Could not reach the EVGO API.</p>;
   const leads: ChargerLead[] = await res.json();
   return (

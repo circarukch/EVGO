@@ -94,12 +94,25 @@ model Organisation {
   cancellationPolicies CancellationPolicy[]
 }
 
+/// A person who signs in to the operator console.
+/// role "admin": everything (EVGO staff, org-evgo). role "station_operator": only their own organisation's stations and chargers.
 model OperatorUser {
-  id    String       @id @default(uuid())
-  orgId String
-  email String       @unique
-  role  String // e.g. org_admin, depot_manager, technician, conductor
-  org   Organisation @relation(fields: [orgId], references: [id])
+  id                 String       @id @default(uuid())
+  orgId              String
+  email              String       @unique
+  name               String       @default("")
+  role               String // admin | station_operator
+  passwordHash       String? // scrypt; null until a password is set
+  active             Boolean      @default(true)
+  mustChangePassword Boolean      @default(true)
+  /// Bumped on password change, reset or deactivation: every older sign-in stops working.
+  tokenVersion       Int          @default(0)
+  failedLogins       Int          @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @default(now()) @updatedAt
+  org                Organisation @relation(fields: [orgId], references: [id])
 }
 
 model RfidToken {

@@ -1,17 +1,16 @@
-import { adminFetch, Operator } from "../../../lib/api";
+import { adminFetch, Operator, orNull } from "../../../lib/api";
 import { PolicyForm } from "./policy-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function CancellationSettings() {
   let operators: Operator[] | null = null;
-  let problem = "Could not reach the EVGO API.";
+  const problem = "Could not reach the EVGO API.";
   try {
     const res = await adminFetch("/admin/operators");
     if (res.ok) operators = await res.json();
-    else if (res.status === 401) problem = "The console's admin key was refused by the API. Check EVGO_ADMIN_API_KEY.";
   } catch (e) {
-    if (e instanceof Error && e.message.includes("EVGO_ADMIN_API_KEY")) problem = e.message;
+    orNull(e);
   }
   return (
     <main>

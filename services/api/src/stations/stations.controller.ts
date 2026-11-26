@@ -1,6 +1,6 @@
-import { Body, CanActivate, Controller, ExecutionContext, Get, HttpCode, Injectable, Param, Post, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { Body, CanActivate, Controller, ExecutionContext, Get, HttpCode, Injectable, NotFoundException, Param, Post, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { timingSafeEqual } from "node:crypto";
-import { AdminGuard } from "../admin/admin.guard";
+import { AdminGuard, CurrentOperator, OperatorPrincipal, OperatorRoles } from "../admin/admin.guard";
 import { config } from "../config";
 import { GatewayEvent, NewCharger, NewStation, StationsService } from "./stations.service";
 
@@ -15,49 +15,78 @@ export class GatewayKeyGuard implements CanActivate {
   }
 }
 
+/** Stations and chargers. Admins see all; a station operator sees and changes only their own organisation's. */
 @Controller("admin")
 @UseGuards(AdminGuard)
+@OperatorRoles("admin", "station_operator")
 export class StationsAdminController {
   constructor(private readonly stations: StationsService) {}
 
+  /** Org a station operator is limited to; null for admins. */
+  private scope(op: OperatorPrincipal) {
+    return op.role === "admin" ? null : op.orgId;
+  }
+
+  // "Not found" rather than "forbidden", so other operators' station and charger IDs stay private.
+  private async ownSite(op: OperatorPrincipal, siteId: string) {
+    const only = this.scope(op);
+    if (only && (await this.stations.siteOrgId(siteId)) !== only) throw new NotFoundException("Station not found");
+  }
+
+  private async ownCharger(op: OperatorPrincipal, cp: string) {
+    const only = this.scope(op);
+    if (only && (await this.stations.chargerOrgId(cp)) !== only) throw new NotFoundException("Charger not found");
+  }
+
   @Get("cpo-operators")
-  operators() {
-    return this.stations.operators();
+  operators(@CurrentOperator() op: OperatorPrincipal) {
+    return this.stations.operators(this.scope(op));
   }
 
   @Get("stations")
-  list() {
-    return this.stations.list();
+  list(@CurrentOperator() op: OperatorPrincipal) {
+    return this.stations.list(this.scope(op));
   }
 
   @Post("stations")
-  create(@Body() body: NewStation) {
-    return this.stations.createStation(body);
+  create(@CurrentOperator() op: OperatorPrincipal, @Body() body: NewStation) {
+    const only = this.scope(op);
+    // A station operator always adds to their own organisation and cannot create new ones.
+    return this.stations.createStation(only ? { ...body, orgId: only, newOperatorName: undefined } : body);
   }
 
   @Get("stations/:siteId")
-  get(@Param("siteId") siteId: string) {
+  async get(@CurrentOperator() op: OperatorPrincipal, @Param("siteId") siteId: string) {
+    await this.ownSite(op, siteId);
     return this.stations.get(siteId);
   }
 
   @Post("stations/:siteId/chargers")
-  addCharger(@Param("siteId") siteId: string, @Body() body: NewCharger) {
+  async addCharger(@CurrentOperator() op: OperatorPrincipal, @Param("siteId") siteId: string, @Body() body: NewCharger) {
+    await this.ownSite(op, siteId);
     return this.stations.addCharger(siteId, body);
   }
 
   @Post("chargers/:cp/password")
-  rotate(@Param("cp") cp: string) {
+  async rotate(@CurrentOperator() op: OperatorPrincipal, @Param("cp") cp: string) {
+    await this.ownCharger(op, cp);
     return this.stations.rotatePassword(cp);
   }
 
   @Get("chargers/:cp/qr")
-  qr(@Param("cp") cp: string) {
+  async qr(@CurrentOperator() op: OperatorPrincipal, @Param("cp") cp: string) {
+    await this.ownCharger(op, cp);
     return this.stations.qrCodes(cp);
   }
 
   @Post("chargers/:cp/actions")
   @HttpCode(200)
-  action(@Param("cp") cp: string, @Body() body: { action: string; connectorId?: number; idTag?: string; type?: string }) {
+  async action(
+    @CurrentOperator() op: OperatorPrincipal,
+    @Param("cp") cp: string,
+    @Body() body: { action: string; connectorId?: number; idTag?: string; type?: string },
+  ) {
+    await this.ownCharger(op, cp);
     return this.stations.action(cp, body);
   }
 }

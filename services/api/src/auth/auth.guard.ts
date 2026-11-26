@@ -14,7 +14,9 @@ export class AuthGuard implements CanActivate {
     const [scheme, token] = String(req.headers.authorization ?? "").split(" ");
     if (scheme !== "Bearer" || !token) throw new UnauthorizedException("Log in first");
     try {
-      const payload = await this.jwt.verifyAsync<{ sub: string }>(token);
+      const payload = await this.jwt.verifyAsync<{ sub: string; typ?: string }>(token);
+      // Console (operator) tokens are not customer logins.
+      if (payload.typ) throw new Error("not a customer token");
       req.user = { id: payload.sub } satisfies AuthUser;
       return true;
     } catch {

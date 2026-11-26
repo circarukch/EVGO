@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { adminFetch, Station } from "../../../lib/api";
+import { adminFetch, Station, orNull } from "../../../lib/api";
 import { MapPreview } from "../map-preview";
 import { AddChargerForm } from "./add-charger-form";
 import { AutoRefresh } from "./auto-refresh";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function StationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const res = await adminFetch(`/admin/stations/${encodeURIComponent(id)}`).catch(() => null);
+  const res = await adminFetch(`/admin/stations/${encodeURIComponent(id)}`).catch(orNull);
   if (!res) return <p className="error">Could not reach the EVGO API.</p>;
   if (res.status === 404) notFound();
   const s: Station = await res.json();
