@@ -69,18 +69,28 @@ class _WalletScreenState extends State<WalletScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final amount in const [50000, 100000, 200000])
-                  OutlinedButton(onPressed: _busy ? null : () => _add(amount), child: Text('+ ${rupees(amount)}')),
-                OutlinedButton.icon(
-                  key: const Key('topup-custom'),
-                  onPressed: _busy ? null : _addOther,
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: const Text('Other amount'),
-                ),
-              ],
+            Text('Add money', style: text.titleMedium),
+            const SizedBox(height: 8),
+            // Four equal tiles in one white strip, same look as the filter bars on Charge and Shop.
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 2))],
+              ),
+              child: Row(
+                children: [
+                  for (final amount in const [50000, 100000, 200000])
+                    _AmountTile(
+                      key: Key('topup-$amount'),
+                      icon: Icons.add,
+                      label: rupees(amount),
+                      onTap: _busy ? null : () => _add(amount),
+                    ),
+                  _AmountTile(key: const Key('topup-custom'), icon: Icons.edit_outlined, label: 'Other', onTap: _busy ? null : _addOther),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
             Text('History', style: text.titleMedium),
@@ -98,6 +108,46 @@ class _WalletScreenState extends State<WalletScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+/// One quick top-up choice: small icon over the amount, all four the same width.
+class _AmountTile extends StatelessWidget {
+  const _AmountTile({super.key, required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: Material(
+          color: const Color(0xFFF1F6F4),
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: SizedBox(
+              height: 58,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 16, color: Brand.green),
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(label, maxLines: 1, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Brand.blue)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

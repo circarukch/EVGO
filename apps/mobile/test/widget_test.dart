@@ -115,11 +115,11 @@ void main() {
     await tester.tap(find.text('Wallet'));
     await tester.pumpAndSettle();
     expect(find.text('₹0'), findsOneWidget);
-    await tester.tap(find.text('+ ₹500'));
+    await tester.tap(find.byKey(const Key('topup-50000')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('checkout-card')));
     await tester.pumpAndSettle();
-    expect(find.text('₹500'), findsOneWidget);
+    expect(find.text('+₹500'), findsOneWidget); // history line; the balance and the quick tile both read ₹500
     expect(find.text('Added money to wallet by card'), findsOneWidget);
   });
 
@@ -317,7 +317,7 @@ void main() {
     await tester.tap(find.byKey(const Key('start-GNT-HUB-01-1')));
     await tester.pumpAndSettle();
     expect(find.text('Pay by UPI'), findsOneWidget);
-    expect(find.text('Hold ₹500 by UPI and start'), findsOneWidget); // 60 kW DC: ₹300 / ₹500 / ₹1000
+    expect(find.text('Hold ₹500 by UPI and start'), findsOneWidget); // 60 kW DC: ₹300 / ₹500 / ₹1,000
     await tester.tap(find.byKey(const Key('pay-upi')));
     await tester.pumpAndSettle();
     expect(find.text('UPI app (test)'), findsOneWidget);
@@ -447,7 +447,7 @@ void main() {
     await logIn(tester);
     await tester.tap(find.text('Wallet'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('+ ₹1000'));
+    await tester.tap(find.byKey(const Key('topup-100000')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('checkout-card')));
     await tester.pumpAndSettle();
@@ -472,7 +472,7 @@ void main() {
     expect(find.text('Recent activity'), findsOneWidget);
     expect(find.byKey(const Key('activity-trip-O1aaaaaa-0000')), findsOneWidget);
     expect(find.text('Added money to wallet by card'), findsOneWidget);
-    expect(find.text('+₹1000'), findsOneWidget);
+    expect(find.text('+₹1,000'), findsOneWidget);
     // The ticket payment is shown once, as the trip, not again as a wallet line.
     expect(find.text('Bus ticket, Guntur to Hyderabad'), findsNothing);
 

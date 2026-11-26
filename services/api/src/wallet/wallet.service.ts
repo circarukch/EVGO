@@ -46,7 +46,7 @@ export class WalletService {
    */
   async createTopUp(userId: string, amountPaise: number) {
     if (!Number.isInteger(amountPaise) || amountPaise < config.topUpMinPaise || amountPaise > config.topUpMaxPaise) {
-      throw new BadRequestException(`Top-up must be between ₹${config.topUpMinPaise / 100} and ₹${config.topUpMaxPaise / 100}`);
+      throw new BadRequestException(`Top-up must be between ₹${(config.topUpMinPaise / 100).toLocaleString("en-IN")} and ₹${(config.topUpMaxPaise / 100).toLocaleString("en-IN")}`);
     }
     const wallet = await this.walletFor(userId);
     const user = await this.db.user.findUniqueOrThrow({ where: { id: userId } });

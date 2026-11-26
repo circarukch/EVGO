@@ -71,7 +71,7 @@ class _TravelScreenState extends State<TravelScreen> {
                             '${t.operator} · ${t.seatsLeft} seats left'
                             '${t.chargersAtBoarding > 0 ? ' · ${t.chargersAtBoarding} chargers at boarding' : ''}',
                           ),
-                          trailing: Text('₹${t.fareInr}'),
+                          trailing: Text(inr(t.fareInr)),
                         ),
                       ),
                   ],
