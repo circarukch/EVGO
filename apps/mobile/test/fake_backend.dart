@@ -25,8 +25,9 @@ class FakeBackend {
         http.Response(jsonEncode(o), status, headers: {'content-type': 'application/json; charset=utf-8'});
 
     if (path == '/auth/otp/request') {
-      if (body['phone'] != '9876543210' && body['phone'] != otherPhone)
+      if (body['phone'] != '9876543210' && body['phone'] != otherPhone) {
         return json({'message': 'Enter a valid 10-digit Indian mobile number'}, 400);
+      }
       return json({'phone': '+91${body['phone']}', 'expiresInSec': 300, 'devCode': '123456'});
     }
     if (path == '/auth/otp/verify') {
@@ -157,7 +158,7 @@ class FakeBackend {
         return json({'message': 'Not enough money in wallet', 'balancePaise': balancePaise, 'shortfallPaise': total - balancePaise}, 402);
       }
       balancePaise -= total;
-      history.add({'amountPaise': -total, 'memo': 'Bus ticket, Guntur to Hyderabad'});
+      history.add({'amountPaise': -total, 'memo': 'Bus ticket, Guntur to Hyderabad', 'at': DateTime.now().toUtc().toIso8601String()});
       paidMethod = 'wallet';
       return json({
         'status': 'PAID',
@@ -180,7 +181,7 @@ class FakeBackend {
       balancePaise += _lastTopUp;
       topUpPaid = true;
       final by = {'upi': ' by UPI', 'card': ' by card', 'netbanking': ' by netbanking'}[body['method']] ?? '';
-      history.add({'amountPaise': _lastTopUp, 'memo': 'Added money to wallet$by'});
+      history.add({'amountPaise': _lastTopUp, 'memo': 'Added money to wallet$by', 'at': DateTime.now().toUtc().toIso8601String()});
       return json({'status': 'SUCCEEDED'}, 201);
     }
     if (path == '/wallet/topups/P1/check') return json({'status': topUpPaid ? 'SUCCEEDED' : 'FAILED'}, 201);
@@ -263,10 +264,11 @@ class FakeBackend {
       }
       return json({'block': block, 'session': _session()}, 201);
     }
-    if (path == '/charging/sessions' && req.method == 'GET')
+    if (path == '/charging/sessions' && req.method == 'GET') {
       return json({
         'sessions': session == null ? [] : [_session()]
       });
+    }
     if (path == '/charging/sessions/active') return json({'session': session?['status'] == 'ACTIVE' ? _session() : null});
     if (path == '/charging/sessions/s1') {
       session!['energyWh'] = (session!['energyWh'] as int) + 1500;

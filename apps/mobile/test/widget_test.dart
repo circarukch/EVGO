@@ -417,6 +417,61 @@ void main() {
     expect(find.byType(BackButton), findsNothing);
   });
 
+  testWidgets('shows recent activity from the account menu: tickets and wallet, newest first, tap for details', (tester) async {
+    await logIn(tester);
+    await tester.tap(find.text('Wallet'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('+ ₹1000'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('checkout-card')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Travel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Search buses'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('06:00 to 11:30'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('S1'));
+    await tester.pump();
+    await tester.enterText(find.widgetWithText(TextField, 'Passenger name'), 'Priya');
+    await tester.tap(find.byKey(const Key('pay-wallet')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Account'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('account-activity')));
+    await tester.pumpAndSettle();
+    expect(find.text('Recent activity'), findsOneWidget);
+    expect(find.byKey(const Key('activity-trip-O1aaaaaa-0000')), findsOneWidget);
+    expect(find.text('Added money to wallet by card'), findsOneWidget);
+    expect(find.text('+₹1000'), findsOneWidget);
+    // The ticket payment is shown once, as the trip, not again as a wallet line.
+    expect(find.text('Bus ticket, Guntur to Hyderabad'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('activity-filter-wallet')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('activity-trip-O1aaaaaa-0000')), findsNothing);
+    expect(find.text('Added money to wallet by card'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('activity-filter-all')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('activity-trip-O1aaaaaa-0000')));
+    await tester.pumpAndSettle();
+    expect(find.text('Trip details'), findsOneWidget);
+    expect(find.text('Ticket TKS1'), findsOneWidget);
+  });
+
+  testWidgets('a new account sees an empty recent activity', (tester) async {
+    await logIn(tester, phone: FakeBackend.otherPhone);
+    await tester.tap(find.byTooltip('Account'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('account-activity')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Nothing here yet'), findsOneWidget);
+  });
+
   testWidgets('a declined UPI request does not start charging', (tester) async {
     await startByUpi(tester);
     await tester.tap(find.byKey(const Key('mock-upi-decline')));

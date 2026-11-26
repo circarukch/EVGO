@@ -46,7 +46,7 @@ export class ChargingController {
     return this.charging.start(user.id, body?.chargePointId, Number(body?.connectorId));
   }
 
-  /** Latest sessions, the running one first (Home's "Your trips"). */
+  /** Latest sessions, the running one first (Home: 5; Recent activity: up to 50). */
   @Get()
   recent(@CurrentUser() user: AuthUser, @Query("limit") limit?: string) {
     return this.charging.recent(user.id, limit ? Number(limit) : 5);
