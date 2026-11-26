@@ -1,27 +1,32 @@
-import "reflect-metadata";
 import { INestApplication } from "@nestjs/common";
-import { Test } from "@nestjs/testing";
 import request from "supertest";
-import { AppModule } from "../src/app.module";
+import { createApp } from "./helpers";
 
-describe("EVGO API", () => {
+describe("Catalog", () => {
   let app: INestApplication;
-
-  beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = mod.createNestApplication();
-    app.setGlobalPrefix("v1");
-    await app.init();
-  });
-
+  beforeAll(async () => (app = await createApp()));
   afterAll(() => app.close());
 
   it("reports health", () => request(app.getHttpServer()).get("/v1/health").expect(200, { ok: true, service: "evgo-api" }));
 
-  it("finds Guntur to Hyderabad trips with charger counts at boarding", async () => {
+  it("finds upcoming Guntur to Hyderabad trips with seats, fares and chargers at boarding", async () => {
     const res = await request(app.getHttpServer()).get("/v1/trips?from=Guntur&to=Hyderabad").expect(200);
-    expect(res.body).toHaveLength(3);
-    expect(res.body[0].chargersAtBoarding).toBe(2); // the fleet-only depot charger is not counted
+    expect(res.body.length).toBeGreaterThanOrEqual(40);
+    const first = res.body[0];
+    expect(first.from).toBe("Guntur EVGO Hub");
+    expect(first.to).toBe("Hyderabad LB Nagar");
+    expect(first.chargersAtBoarding).toBe(2); // the fleet-only depot charger is not counted
+    expect(new Date(first.arrivesAt).getTime() - new Date(first.departsAt).getTime()).toBe(330 * 60_000);
+  });
+
+  it("supports boarding at an intermediate stop", async () => {
+    const res = await request(app.getHttpServer()).get("/v1/trips?from=Vijayawada&to=Hyderabad").expect(200);
+    expect(res.body[0].from).toBe("Vijayawada Benz Circle");
+  });
+
+  it("does not sell the reverse direction", async () => {
+    const res = await request(app.getHttpServer()).get("/v1/trips?from=Hyderabad&to=Guntur").expect(200);
+    expect(res.body).toEqual([]);
   });
 
   it("requires from and to for trip search", () => request(app.getHttpServer()).get("/v1/trips?from=Guntur").expect(400));
@@ -31,6 +36,7 @@ describe("EVGO API", () => {
     expect(twoWheeler.body.map((c: { id: string }) => c.id)).toEqual(["GNT-HUB-02"]);
     const bus = await request(app.getHttpServer()).get("/v1/chargers?segment=BUS").expect(200);
     expect(bus.body.map((c: { id: string }) => c.id)).toEqual(["SRY-PLZ-01"]);
+    expect(bus.body[0]).toMatchObject({ operator: "Partner CPO", pricePerKwhInr: 21 });
   });
 
   it("returns 404 for an unknown charger", () => request(app.getHttpServer()).get("/v1/chargers/NOPE").expect(404));

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/evgo_api.dart';
 import '../api/models.dart';
+import 'seat_screen.dart';
 
 class TravelScreen extends StatefulWidget {
   const TravelScreen({super.key, required this.api});
@@ -59,7 +60,10 @@ class _TravelScreenState extends State<TravelScreen> {
                     for (final t in trips)
                       Card(
                         child: ListTile(
-                          title: Text('${t.departs} to ${t.arrives} · ${t.busType}'),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute<bool>(builder: (_) => SeatScreen(api: widget.api, trip: t)),
+                          ),
+                          title: Text('${t.dateLabel} ${t.departs} to ${t.arrives} · ${t.busType}'),
                           subtitle: Text(
                             '${t.operator} · ${t.seatsLeft} seats left'
                             '${t.chargersAtBoarding > 0 ? ' · ${t.chargersAtBoarding} chargers at boarding' : ''}',
