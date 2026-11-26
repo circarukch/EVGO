@@ -50,7 +50,7 @@ void main() {
     }
     expect(find.text('Want a ticket?'), findsOneWidget);
     expect(find.text('Want to charge your EV?'), findsOneWidget);
-    await scrollTo(tester, 'No trips or charging yet');
+    await scrollTo(tester, 'No activity yet');
   });
 
   testWidgets('books a seat, tops up the shortfall, and shows the ticket and trip', (tester) async {
@@ -363,11 +363,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.text('Home'));
     await tester.pump(const Duration(milliseconds: 500));
-    await scrollTo(tester, 'Your trips');
+    await scrollTo(tester, 'Your activity');
     expect(find.byKey(const Key('home-live-charging')), findsOneWidget);
     expect(find.text('Charging now · Guntur EVGO Hub'), findsOneWidget);
     expect(find.text('₹500 held by UPI · tap to stop'), findsOneWidget);
-    expect(find.text('No trips or charging yet'), findsNothing);
+    expect(find.text('No activity yet'), findsNothing);
 
     // Tap it: the live screen, with Stop.
     await tester.tap(find.byKey(const Key('home-live-charging')));
@@ -417,8 +417,8 @@ void main() {
     await logOutFromMenu(tester);
     await logIn(tester, phone: FakeBackend.otherPhone, fresh: false);
     expect(api.phone, '+91${FakeBackend.otherPhone}');
-    await scrollTo(tester, 'No trips or charging yet');
-    expect(find.text('No trips or charging yet'), findsOneWidget);
+    await scrollTo(tester, 'No activity yet');
+    expect(find.text('No activity yet'), findsOneWidget);
     expect(find.text('Recent charging'), findsNothing);
     expect(find.byKey(const Key('recent-s1')), findsNothing);
     await tester.tap(find.text('Wallet'));
