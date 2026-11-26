@@ -28,6 +28,19 @@ class EvgoApi {
   /// Bearer token after login. Kept in memory for now; secure storage comes next.
   String? token;
 
+  /// Logged-in mobile number, shown on the account sheet.
+  String? phone;
+
+  /// Called after [logOut], so the app can return to the login screen.
+  void Function()? onLoggedOut;
+
+  /// Forgets this device's session. The user can log back in with a new OTP.
+  void logOut() {
+    token = null;
+    phone = null;
+    onLoggedOut?.call();
+  }
+
   Map<String, String> get _headers => {
         'content-type': 'application/json',
         if (token != null) 'authorization': 'Bearer $token',
@@ -45,6 +58,10 @@ class EvgoApi {
 
   dynamic _decode(http.Response res) {
     final data = res.body.isEmpty ? null : jsonDecode(res.body);
+    if (res.statusCode == 401 && token != null) {
+      // Session expired or was revoked: drop it so the app shows the login screen.
+      logOut();
+    }
     if (res.statusCode >= 400) {
       final map = data is Map<String, dynamic> ? data : <String, dynamic>{};
       final msg = map['message'];
@@ -64,6 +81,7 @@ class EvgoApi {
   Future<void> verifyOtp(String phone, String code) async {
     final r = await _post('/auth/otp/verify', {'phone': phone, 'code': code}) as Map<String, dynamic>;
     token = r['accessToken'] as String;
+    this.phone = (r['user'] as Map<String, dynamic>?)?['phone'] as String? ?? phone;
   }
 
   // ---- Catalog ----

@@ -25,6 +25,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Home is a long page; scroll it until [text] is on screen.
+  Future<void> scrollTo(WidgetTester tester, String text) async {
+    await tester.scrollUntilVisible(find.text(text), 200, scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(find.text(text));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('shows an error for an invalid phone number', (tester) async {
     await tester.pumpWidget(EvgoApp(api: api));
     await tester.enterText(find.byType(TextField).first, '12345');
@@ -38,7 +45,9 @@ void main() {
     for (final tab in ['Home', 'Travel', 'Charge', 'Wallet']) {
       expect(find.text(tab), findsOneWidget);
     }
-    expect(find.text('No upcoming trips. Book a bus from the Travel tab.'), findsOneWidget);
+    expect(find.text('Want a ticket?'), findsOneWidget);
+    expect(find.text('Want to charge your EV?'), findsOneWidget);
+    await scrollTo(tester, 'No upcoming trips yet');
   });
 
   testWidgets('books a seat, tops up the shortfall, and shows the ticket and trip', (tester) async {
@@ -67,6 +76,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Home'));
     await tester.pumpAndSettle();
+    await scrollTo(tester, 'Guntur to Hyderabad');
     expect(find.text('Guntur to Hyderabad'), findsOneWidget);
   });
 
@@ -87,5 +97,66 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Guntur EVGO Hub'), findsOneWidget);
     expect(find.byType(ChoiceChip), findsNWidgets(5));
+  });
+
+  testWidgets('home choices open the bus and charging tabs', (tester) async {
+    await logIn(tester);
+    await tester.tap(find.text('Book a bus'));
+    await tester.pumpAndSettle();
+    expect(find.text('Search buses'), findsOneWidget);
+
+    await tester.tap(find.text('Home'));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, 'Find a charger');
+    await tester.tap(find.text('Find a charger'));
+    await tester.pumpAndSettle();
+    expect(find.text('Guntur EVGO Hub'), findsOneWidget);
+  });
+
+  testWidgets('logs out from the account menu and the same user logs in again', (tester) async {
+    await logIn(tester);
+    await tester.tap(find.byTooltip('Account'));
+    await tester.pumpAndSettle();
+    expect(find.text('+919876543210'), findsOneWidget);
+    await tester.tap(find.text('Log out').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Log out of EVGO?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Log out'));
+    await tester.pumpAndSettle();
+
+    expect(api.token, isNull);
+    expect(find.text('Send code'), findsOneWidget);
+
+    await logIn(tester);
+    expect(find.text('Want a ticket?'), findsOneWidget);
+  });
+
+  testWidgets('returns to login when the server rejects the session', (tester) async {
+    await logIn(tester);
+    api.token = 'expired';
+    await tester.tap(find.text('Wallet'));
+    await tester.pumpAndSettle();
+    expect(find.text('Send code'), findsOneWidget);
+  });
+
+  testWidgets('tapping the logo goes to Home, from a tab or from the seat screen', (tester) async {
+    await logIn(tester);
+    await tester.tap(find.text('Wallet'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('logo-home')));
+    await tester.pumpAndSettle();
+    expect(find.text('Want a ticket?'), findsOneWidget);
+
+    await tester.tap(find.text('Travel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Search buses'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('06:00 to 11:30'));
+    await tester.pumpAndSettle();
+    expect(find.text('S1'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('logo-home')).last);
+    await tester.pumpAndSettle();
+    expect(find.text('S1'), findsNothing);
+    expect(find.text('Want a ticket?'), findsOneWidget);
   });
 }

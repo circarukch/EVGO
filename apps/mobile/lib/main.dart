@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'api/evgo_api.dart';
 import 'brand.dart';
+import 'screens/account_sheet.dart';
 import 'screens/charge_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -22,6 +23,14 @@ class EvgoApp extends StatefulWidget {
 }
 
 class _EvgoAppState extends State<EvgoApp> {
+  @override
+  void initState() {
+    super.initState();
+    widget.api.onLoggedOut = () {
+      if (mounted) setState(() {});
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -47,11 +56,25 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
 
+  void _go(int i) => setState(() => _index = i);
+
+  /// Logo tap from any screen: close anything opened on top and show Home.
+  void _goHome() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    _go(0);
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
-      HomeScreen(api: widget.api, key: ValueKey('home-$_index')),
-      TravelScreen(api: widget.api),
+      HomeScreen(
+        api: widget.api,
+        key: ValueKey('home-$_index'),
+        onBookTicket: () => _go(1),
+        onCharge: () => _go(2),
+        onWallet: () => _go(3),
+      ),
+      TravelScreen(api: widget.api, onHome: _goHome),
       ChargeScreen(api: widget.api),
       WalletScreen(api: widget.api, key: ValueKey('wallet-$_index')),
     ];
@@ -59,9 +82,19 @@ class _AppShellState extends State<AppShell> {
       body: SafeArea(
         child: Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 10, 16, 8),
-              child: Align(alignment: Alignment.centerLeft, child: EvgoLogo(height: 28)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+              child: Row(
+                children: [
+                  EvgoLogo(height: 28, onTap: _goHome),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Account',
+                    icon: const Icon(Icons.account_circle_outlined, color: Brand.ink),
+                    onPressed: () => showAccountSheet(context, widget.api),
+                  ),
+                ],
+              ),
             ),
             const BrandRule(height: 2),
             Expanded(child: pages[_index]),
@@ -70,7 +103,7 @@ class _AppShellState extends State<AppShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: _go,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.directions_bus_outlined), label: 'Travel'),
