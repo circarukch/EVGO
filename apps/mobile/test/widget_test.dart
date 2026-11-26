@@ -45,7 +45,7 @@ void main() {
 
   testWidgets('logs in and shows the four tabs', (tester) async {
     await logIn(tester);
-    for (final tab in ['Home', 'Travel', 'Charge', 'Wallet']) {
+    for (final tab in ['Home', 'Travel', 'Charge', 'Shop', 'Wallet']) {
       expect(find.text(tab), findsOneWidget);
     }
     expect(find.text('Want a ticket?'), findsOneWidget);
@@ -509,23 +509,40 @@ void main() {
 
   testWidgets('Want a charger? lists AC and DC chargers, filters them, and sends a quote request', (tester) async {
     await logIn(tester);
-    await scrollTo(tester, 'Want a charger?');
+    await scrollTo(tester, 'Shop chargers');
     await tester.tap(find.byKey(const Key('choice-shop')));
     await tester.pumpAndSettle();
+    // The Home card opens the Shop tab.
+    expect(find.byKey(const Key('shop-filter-current')), findsOneWidget);
     expect(find.byKey(const Key('shop-product-smp-ac-7')), findsOneWidget);
-    expect(find.byKey(const Key('shop-product-smp-dc-240')), findsOneWidget);
     expect(find.text('Sample'), findsWidgets);
     expect(find.text('₹32,000'), findsOneWidget);
 
-    await tester.tap(find.text('DC fast').first);
+    // Same filter tiles as Charge: AC / DC, Power, For.
+    await tester.tap(find.byKey(const Key('shop-filter-current')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DC fast chargers').last);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('shop-product-smp-ac-7')), findsNothing);
     expect(find.byKey(const Key('shop-product-smp-dc-60')), findsOneWidget);
-    await tester.ensureVisible(find.byKey(const Key('shop-kw-ultra')));
-    await tester.tap(find.byKey(const Key('shop-kw-ultra')));
+    await tester.tap(find.byKey(const Key('shop-filter-power')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('180 kW+').last);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('shop-product-smp-dc-60')), findsNothing);
     expect(find.byKey(const Key('shop-product-smp-dc-240')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('shop-filter-use')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Home').last);
+    await tester.pumpAndSettle();
+    expect(find.text('No chargers match these filters'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('shop-clear-filters')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shop-product-smp-ac-7')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('shop-filter-current')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DC fast chargers').last);
+    await tester.pumpAndSettle();
 
     await tester.ensureVisible(find.byKey(const Key('shop-product-smp-dc-240')));
     await tester.tap(find.byKey(const Key('shop-product-smp-dc-240')));

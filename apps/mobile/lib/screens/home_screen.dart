@@ -6,7 +6,6 @@ import '../api/evgo_api.dart';
 import '../api/models.dart';
 import '../brand.dart';
 import 'charging_session_screen.dart';
-import 'shop_screen.dart';
 import 'trip_details_screen.dart';
 
 /// Landing page after login: three big choices (a bus ticket, a charge, or buying a charger),
@@ -17,6 +16,7 @@ class HomeScreen extends StatefulWidget {
     required this.api,
     required this.onBookTicket,
     required this.onCharge,
+    required this.onShop,
     required this.onWallet,
     this.liveEvery = const Duration(seconds: 5),
   });
@@ -25,6 +25,7 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback onBookTicket;
 
   final VoidCallback onCharge;
+  final VoidCallback onShop;
   final VoidCallback onWallet;
   final Duration liveEvery;
 
@@ -125,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
           action: 'Shop chargers',
           icon: Icons.ev_station,
           colors: const [Brand.ink, Brand.blue],
-          onTap: () => Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => ShopScreen(api: widget.api))),
+          onTap: widget.onShop,
         ),
         const SizedBox(height: 20),
         Text('Your trips', style: text.titleMedium),

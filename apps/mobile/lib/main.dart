@@ -6,6 +6,7 @@ import 'screens/account_sheet.dart';
 import 'screens/charge_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/shop_screen.dart';
 import 'screens/travel_screen.dart';
 import 'screens/wallet_screen.dart';
 
@@ -79,10 +80,12 @@ class _AppShellState extends State<AppShell> {
         key: ValueKey('home-$_index'),
         onBookTicket: () => _go(1),
         onCharge: () => _go(2),
-        onWallet: () => _go(3),
+        onShop: () => _go(3),
+        onWallet: () => _go(4),
       ),
       TravelScreen(api: widget.api, onHome: _goHome),
       ChargeScreen(api: widget.api),
+      ShopScreen(api: widget.api),
       WalletScreen(api: widget.api, key: ValueKey('wallet-$_index')),
     ];
     return Scaffold(
@@ -115,6 +118,7 @@ class _AppShellState extends State<AppShell> {
           NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.directions_bus_outlined), label: 'Travel'),
           NavigationDestination(icon: Icon(Icons.ev_station_outlined), label: 'Charge'),
+          NavigationDestination(icon: Icon(Icons.storefront_outlined), label: 'Shop'),
           NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Wallet'),
         ],
       ),
