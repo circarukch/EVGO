@@ -154,6 +154,10 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Cancel ticket').last);
     await tester.pumpAndSettle();
     expect(find.text('Cancelled. ₹494.10 is on its way back to your UPI account (usually 3 to 5 working days)'), findsOneWidget);
+    await tester.drag(find.byType(ListView).first, const Offset(0, 2000));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, 'Refunded to UPI');
+    expect(find.text('Refunded to UPI'), findsOneWidget);
   });
 
   testWidgets('shows stations on the map and as a list, with vehicle filters', (tester) async {

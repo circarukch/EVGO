@@ -557,3 +557,14 @@ class CancelResult {
     return 'Cancelled. ${rupees(refundPaise)} is on its way back to $where (usually 3 to 5 working days)';
   }
 }
+
+/// How a payment method reads on screen.
+String paymentMethodLabel(String? method) => switch (method) {
+      'wallet' => 'EVGO wallet',
+      'upi' => 'UPI',
+      'card' => 'Card',
+      'netbanking' => 'Netbanking',
+      'app_wallet' => 'Wallet app',
+      null => '-',
+      _ => method.toUpperCase(),
+    };

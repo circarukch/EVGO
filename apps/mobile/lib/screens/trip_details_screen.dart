@@ -144,10 +144,16 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
             _Line('Fare', rupees(b.totalPaise - gst)),
             _Line('GST (${busGstPercent.toStringAsFixed(0)}%)', rupees(gst)),
             _Line('Total paid', rupees(b.totalPaise), bold: true),
-            _Line('Paid by', b.paymentMethod == 'wallet' ? 'EVGO wallet' : (b.paymentMethod ?? '-').toUpperCase()),
+            _Line('Paid by', paymentMethodLabel(b.paymentMethod)),
             if (b.bookedAt != null) _Line('Booked on', '${longDate(b.bookedAt!)}, ${clock(b.bookedAt!)}'),
             _Line('Booking ID', b.orderId.substring(0, 8).toUpperCase()),
-            if (b.refundPaise > 0) _Line('Refunded to wallet', rupees(b.refundPaise), bold: true),
+            if (b.refundPaise > 0)
+              _Line(
+                  b.paymentMethod == null || b.paymentMethod == 'wallet'
+                      ? 'Refunded to wallet'
+                      : 'Refunded to ${paymentMethodLabel(b.paymentMethod)}',
+                  rupees(b.refundPaise),
+                  bold: true),
           ]),
           if (b.refundSummary.isNotEmpty)
             _Section('Cancellation policy', [Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(b.refundSummary))]),
