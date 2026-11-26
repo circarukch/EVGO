@@ -122,4 +122,30 @@ void main() {
     expect(chip.selected, isTrue);
     expect(backend.lastChargerSegment, 'TRUCK');
   });
+
+  testWidgets('logs out from the account menu and the same user logs in again', (tester) async {
+    await logIn(tester);
+    await tester.tap(find.byTooltip('Account'));
+    await tester.pumpAndSettle();
+    expect(find.text('+919876543210'), findsOneWidget);
+    await tester.tap(find.text('Log out').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Log out of EVGO?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Log out'));
+    await tester.pumpAndSettle();
+
+    expect(api.token, isNull);
+    expect(find.text('Send code'), findsOneWidget);
+
+    await logIn(tester);
+    expect(find.text('Want a ticket?'), findsOneWidget);
+  });
+
+  testWidgets('returns to login when the server rejects the session', (tester) async {
+    await logIn(tester);
+    api.token = 'expired';
+    await tester.tap(find.text('Wallet'));
+    await tester.pumpAndSettle();
+    expect(find.text('Send code'), findsOneWidget);
+  });
 }

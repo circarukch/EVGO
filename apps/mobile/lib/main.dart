@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'api/evgo_api.dart';
 import 'brand.dart';
+import 'screens/account_sheet.dart';
 import 'screens/charge_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -22,6 +23,14 @@ class EvgoApp extends StatefulWidget {
 }
 
 class _EvgoAppState extends State<EvgoApp> {
+  @override
+  void initState() {
+    super.initState();
+    widget.api.onLoggedOut = () {
+      if (mounted) setState(() {});
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -75,9 +84,19 @@ class _AppShellState extends State<AppShell> {
       body: SafeArea(
         child: Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 10, 16, 8),
-              child: Align(alignment: Alignment.centerLeft, child: EvgoLogo(height: 28)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+              child: Row(
+                children: [
+                  const EvgoLogo(height: 28),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Account',
+                    icon: const Icon(Icons.account_circle_outlined, color: Brand.ink),
+                    onPressed: () => showAccountSheet(context, widget.api),
+                  ),
+                ],
+              ),
             ),
             const BrandRule(height: 2),
             Expanded(child: pages[_index]),
