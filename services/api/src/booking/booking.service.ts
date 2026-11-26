@@ -15,7 +15,8 @@ import { config } from "../config";
 import { PrismaService } from "../prisma/prisma.service";
 import { lockWallet, operatorPayable, postJournal, USER_WALLET, walletBalance } from "../wallet/ledger";
 import { WalletService } from "../wallet/wallet.service";
-import { refundShare } from "./cancellation";
+import { cutoffHours, refundShare } from "./cancellation";
+import { CancellationPolicyService } from "./cancellation-policy.service";
 
 export interface SeatRequest {
   seatLabel: string;
@@ -37,15 +38,24 @@ const seatIsFree = (now: Date): Prisma.TripSeatInventoryWhereInput => ({
 
 @Injectable()
 export class BookingService {
-  constructor(private readonly db: PrismaService, private readonly wallets: WalletService) {}
+  constructor(
+    private readonly db: PrismaService,
+    private readonly wallets: WalletService,
+    private readonly policies: CancellationPolicyService,
+  ) {}
 
   async seats(tripId: string) {
-    const trip = await this.db.trip.findUnique({ where: { id: tripId }, include: { inventory: { orderBy: { seatLabel: "asc" } } } });
+    const trip = await this.db.trip.findUnique({
+      where: { id: tripId },
+      include: { inventory: { orderBy: { seatLabel: "asc" } }, schedule: { include: { route: true } } },
+    });
     if (!trip) throw new NotFoundException("Trip not found");
     const now = new Date();
+    const policy = await this.policies.get(trip.schedule.route.orgId);
     return {
       tripId,
       departsAt: trip.departsAt,
+      cancellationPolicy: policy.tiers,
       seats: trip.inventory.map((s) => ({
         seatLabel: s.seatLabel,
         farePaise: s.farePaise,
@@ -182,8 +192,9 @@ export class BookingService {
       const tripId = order.items[0].booking!.tripId;
       const trip = await tx.trip.findUniqueOrThrow({ where: { id: tripId }, include: { schedule: { include: { route: true } } } });
       const hours = (trip.departsAt.getTime() - Date.now()) / 3_600_000;
-      const share = refundShare(hours);
-      if (share === null) throw new BadRequestException("Cancellation closes 6 hours before departure");
+      const { tiers } = await this.policies.get(trip.schedule.route.orgId, tx);
+      const share = refundShare(hours, tiers);
+      if (share === null) throw new BadRequestException(`Cancellation closes ${cutoffHours(tiers)} hours before departure`);
 
       const refundPaise = Math.floor(order.totalPaise * share);
       // Only flip bookings that are still confirmed, so a double cancel cannot refund twice.

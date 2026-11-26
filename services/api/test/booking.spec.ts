@@ -4,11 +4,18 @@ import { refundShare } from "../src/booking/cancellation";
 import { createApp, db, login, topUp } from "./helpers";
 
 describe("refundShare", () => {
-  it("refunds 90% a day or more ahead, 50% from 6 to 24 hours, and closes after that", () => {
+  it("by default refunds 90% a day or more ahead, 50% from 6 to 24 hours, and closes after that", () => {
     expect(refundShare(72)).toBe(0.9);
     expect(refundShare(24)).toBe(0.9);
     expect(refundShare(12)).toBe(0.5);
     expect(refundShare(5.9)).toBeNull();
+  });
+
+  it("follows an operator's own tiers in any order", () => {
+    const tiers = [{ minHoursBefore: 2, refundPercent: 25 }, { minHoursBefore: 48, refundPercent: 100 }];
+    expect(refundShare(50, tiers)).toBe(1);
+    expect(refundShare(10, tiers)).toBe(0.25);
+    expect(refundShare(1, tiers)).toBeNull();
   });
 });
 

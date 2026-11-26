@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/evgo_api.dart';
 import '../api/models.dart';
+import '../brand.dart';
 
 /// One wallet for bus fares and charging.
 class WalletScreen extends StatefulWidget {
@@ -43,9 +44,22 @@ class _WalletScreenState extends State<WalletScreen> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text('EVGO Wallet', style: text.headlineSmall),
-            const SizedBox(height: 8),
-            Text(w == null ? '…' : rupees(w.balancePaise), style: text.displaySmall),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(gradient: Brand.gradient, borderRadius: BorderRadius.circular(16)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('EVGO Wallet', style: text.titleMedium?.copyWith(color: Colors.white)),
+                  const SizedBox(height: 8),
+                  Text(
+                    w == null ? '…' : rupees(w.balancePaise),
+                    style: text.displaySmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
+                  Text('For bus tickets and charging', style: text.bodySmall?.copyWith(color: Colors.white70)),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
             Wrap(
               spacing: 8,

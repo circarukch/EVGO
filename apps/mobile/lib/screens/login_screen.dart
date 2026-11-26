@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/evgo_api.dart';
+import '../brand.dart';
 
 /// Phone number and one-time code. One login for bus tickets and charging.
 class LoginScreen extends StatefulWidget {
@@ -59,14 +60,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
     return Scaffold(
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
             const SizedBox(height: 48),
-            Text('EVGO', style: text.displaySmall),
+            const Align(alignment: Alignment.centerLeft, child: EvgoLogo(height: 56)),
             const SizedBox(height: 8),
             const Text('Electric buses and EV charging, one app.'),
             const SizedBox(height: 32),

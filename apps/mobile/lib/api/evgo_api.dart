@@ -83,9 +83,15 @@ class EvgoApi {
 
   // ---- Booking ----
 
-  Future<List<SeatInfo>> seats(String tripId) async {
+  Future<SeatMap> seats(String tripId) async {
     final r = await _get('/trips/$tripId/seats') as Map<String, dynamic>;
-    return (r['seats'] as List).map((j) => SeatInfo.fromJson(j as Map<String, dynamic>)).toList();
+    final tiers = [
+      for (final t in (r['cancellationPolicy'] as List?) ?? const []) RefundTier.fromJson(t as Map<String, dynamic>)
+    ]..sort((a, b) => b.minHoursBefore.compareTo(a.minHoursBefore));
+    return SeatMap(
+      seats: (r['seats'] as List).map((j) => SeatInfo.fromJson(j as Map<String, dynamic>)).toList(),
+      refundTiers: tiers,
+    );
   }
 
   /// Holds seats for a few minutes. Returns the order id.

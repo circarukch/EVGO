@@ -43,7 +43,7 @@ export default async function ChargersBoard() {
               <td>{c.id}</td>
               <td>{c.place?.name}</td>
               <td>{c.operator}</td>
-              <td>{c.connectors.map((k) => `${k.type} ${k.powerKw} kW: ${k.status}`).join(", ")}</td>
+              <td>{c.connectors.map((k) => (<span key={k.id} className={`status-${k.status}`}>{k.type} {k.powerKw} kW: {k.status}{" "}</span>))}</td>
             </tr>
           ))}
         </tbody>

@@ -1,7 +1,17 @@
 // Customer website. Route pages ("Guntur to Hyderabad bus") are server-rendered for search ranking.
 const API = process.env.EVGO_API_URL ?? "http://localhost:3001/v1";
 
-type Trip = { id: string; operator: string; departs: string; arrives: string; busType: string; seatsLeft: number; fareInr: number; chargersAtBoarding: number };
+type Trip = {
+  id: string;
+  operator: string;
+  departs: string;
+  arrives: string;
+  departsAt: string;
+  busType: string;
+  seatsLeft: number;
+  fareInr: number;
+  chargersAtBoarding: number;
+};
 
 async function loadTrips(): Promise<Trip[] | null> {
   try {
@@ -12,21 +22,31 @@ async function loadTrips(): Promise<Trip[] | null> {
   }
 }
 
+const day = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
+
 export default async function Home() {
   const trips = await loadTrips();
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
-      <h1>EVGO</h1>
-      <p>Electric buses and EV charging, one app, one wallet.</p>
-      <h2>Guntur to Hyderabad</h2>
+    <main>
+      <h1>Guntur to Hyderabad by electric bus</h1>
+      <p className="lead">Book your seat, and charge your EV at the boarding point while you travel. One app, one wallet.</p>
       {trips === null ? (
-        <p>Trip search is unavailable. Start the API with <code>pnpm --filter @evgo/api dev</code>.</p>
+        <p>Trip search is unavailable right now.</p>
       ) : (
-        <ul>
-          {trips.map((t) => (
+        <ul className="trips">
+          {trips.slice(0, 12).map((t) => (
             <li key={t.id}>
-              {t.departs} to {t.arrives}, {t.busType}, {t.operator}: ₹{t.fareInr}, {t.seatsLeft} seats left
-              {t.chargersAtBoarding > 0 ? `, ${t.chargersAtBoarding} chargers at boarding` : ""}
+              <div>
+                <div className="time">
+                  {day(t.departsAt)}, {t.departs} to {t.arrives}
+                </div>
+                <div className="meta">
+                  {t.busType} · {t.operator} · {t.seatsLeft} seats left
+                  {t.chargersAtBoarding > 0 && <span className="charge"> · {t.chargersAtBoarding} chargers at boarding</span>}
+                </div>
+              </div>
+              <div className="fare">₹{t.fareInr}</div>
             </li>
           ))}
         </ul>

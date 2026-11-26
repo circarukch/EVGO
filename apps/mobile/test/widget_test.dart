@@ -51,6 +51,7 @@ void main() {
 
     await tester.tap(find.textContaining('06:00 to 11:30'));
     await tester.pumpAndSettle();
+    expect(find.text('Cancel 24h+ before: 90% back · 6h+ before: 50% back. Closes 6h before departure.'), findsOneWidget);
     await tester.tap(find.text('S1'));
     await tester.pump();
     await tester.enterText(find.widgetWithText(TextField, 'Passenger name'), 'Priya');
