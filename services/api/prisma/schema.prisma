@@ -163,6 +163,7 @@ model OrderItem {
   meta            Json?
   order           Order            @relation(fields: [orderId], references: [id])
   booking         Booking?
+  partnerBooking  PartnerBooking?
   chargingSession ChargingSession?
 }
 
@@ -444,4 +445,26 @@ model CancellationPolicy {
   tiers     Json // [{ "minHoursBefore": 24, "refundPercent": 90 }, ...]
   updatedAt DateTime     @updatedAt
   org       Organisation @relation(fields: [orgId], references: [id])
+}
+
+/// A seat sold from a partner's bus inventory API (not an EVGO-run trip).
+/// The partner owns the seat map and the cancellation rules; EVGO keeps the customer, the wallet and the ticket record.
+model PartnerBooking {
+  id            String        @id @default(uuid())
+  orderItemId   String        @unique
+  providerId    String
+  tripRef       String
+  pnr           String
+  ticketNo      String
+  seatLabel     String
+  passengerName String
+  operator      String
+  routeName     String
+  departsAt     DateTime
+  status        BookingStatus @default(CONFIRMED)
+  cancelledAt   DateTime?
+  createdAt     DateTime      @default(now())
+  orderItem     OrderItem     @relation(fields: [orderItemId], references: [id])
+
+  @@index([providerId, pnr])
 }

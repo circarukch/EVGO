@@ -14,6 +14,14 @@ function adminApiKey(): string {
   return "dev-admin-key";
 }
 
+/** Partner bus inventory APIs to sell from, e.g. "mock-partner". The mock is on by default outside production only. */
+function busInventoryProviders(): string[] {
+  const raw = process.env.BUS_INVENTORY_PROVIDERS ?? (env === "production" ? "" : "mock-partner");
+  const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  if (env === "production" && ids.includes("mock-partner")) throw new Error("The mock partner bus API cannot run in production");
+  return ids;
+}
+
 export const config = {
   env,
   jwtSecret: jwtSecret(),
@@ -22,6 +30,7 @@ export const config = {
   otpDevEcho: process.env.OTP_DEV_ECHO === "true" && env !== "production",
   /** Allow the mock payment gateway endpoint. Never in production. */
   mockPayments: env !== "production",
+  busInventoryProviders: busInventoryProviders(),
   otpTtlSec: 300,
   otpMaxAttempts: 5,
   otpResendSec: 30,
