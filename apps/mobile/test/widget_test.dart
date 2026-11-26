@@ -116,7 +116,7 @@ void main() {
     expect(find.descendant(of: find.byKey(const Key('filter-vehicle')), matching: find.text('Bus')), findsOneWidget);
     await tester.tap(find.byKey(const Key('filter-vehicle')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('All vehicles').last);
+    await tester.tap(find.text('Any vehicle').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('List'));
     await tester.pumpAndSettle();
@@ -163,7 +163,7 @@ void main() {
     await tester.tap(find.byKey(const Key('clear-filters')));
     await tester.pumpAndSettle();
     expect(find.text('Vijayawada Benz Circle'), findsOneWidget);
-    expect(find.text('Any'), findsNWidgets(3)); // AC/DC, power and plug back to Any
+    expect(find.text('Any'), findsNWidgets(4)); // all four filters back to Any
   });
 
   testWidgets('starts charging from the station sheet, watches it live, stops and sees the bill', (tester) async {

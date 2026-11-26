@@ -193,14 +193,14 @@ class _ChargeScreenState extends State<ChargeScreen> {
                     key: const Key('filter-vehicle'),
                     icon: Icons.directions_car_outlined,
                     caption: 'Vehicle',
-                    value: _segment == null ? 'All' : segments[_segment]!,
+                    value: _segment == null ? 'Any' : segments[_segment]!,
                     active: _segment != null,
                     onSelected: (v) {
                       _segment = v == '' ? null : v;
                       _reload();
                     },
                     items: [
-                      const PopupMenuItem(value: '', child: Text('All vehicles')),
+                      const PopupMenuItem(value: '', child: Text('Any vehicle')),
                       for (final e in segments.entries) PopupMenuItem(value: e.key, child: Text(e.value)),
                     ],
                   ),
