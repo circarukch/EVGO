@@ -5,9 +5,12 @@ import '../api/models.dart';
 
 /// Charger list filtered by the user's vehicle segment. Map view comes next.
 class ChargeScreen extends StatefulWidget {
-  const ChargeScreen({super.key, required this.api});
+  const ChargeScreen({super.key, required this.api, this.initialSegment});
 
   final EvgoApi api;
+
+  /// Vehicle type picked on Home, if any.
+  final String? initialSegment;
 
   @override
   State<ChargeScreen> createState() => _ChargeScreenState();
@@ -15,7 +18,7 @@ class ChargeScreen extends StatefulWidget {
 
 class _ChargeScreenState extends State<ChargeScreen> {
   static const segments = ['2W', '3W', '4W', 'BUS', 'TRUCK'];
-  String _segment = '4W';
+  late String _segment = widget.initialSegment ?? '4W';
   late Future<List<ChargerSummary>> _chargers = widget.api.searchChargers(segment: _segment);
 
   void _pick(String s) {
@@ -35,8 +38,7 @@ class _ChargeScreenState extends State<ChargeScreen> {
           child: Wrap(
             spacing: 8,
             children: [
-              for (final s in segments)
-                ChoiceChip(label: Text(s), selected: _segment == s, onSelected: (_) => _pick(s)),
+              for (final s in segments) ChoiceChip(label: Text(s), selected: _segment == s, onSelected: (_) => _pick(s)),
             ],
           ),
         ),

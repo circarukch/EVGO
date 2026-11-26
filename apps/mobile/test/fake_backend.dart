@@ -10,6 +10,7 @@ class FakeBackend {
   final booked = <String>{};
   final history = <Map<String, dynamic>>[];
   bool loggedIn = false;
+  String? lastChargerSegment;
 
   late final MockClient client = MockClient((req) async {
     final path = req.url.path.replaceFirst('/v1', '');
@@ -81,6 +82,7 @@ class FakeBackend {
       return json({'status': 'SUCCEEDED'}, 201);
     }
     if (path == '/chargers') {
+      lastChargerSegment = req.url.queryParameters['segment'];
       return json([
         {'id': 'GNT-HUB-01', 'operator': 'EVGO', 'place': {'name': 'Guntur EVGO Hub'}, 'connectors': [{'type': 'CCS2', 'powerKw': 60, 'status': 'Available'}], 'pricePerKwhInr': 18}
       ]);

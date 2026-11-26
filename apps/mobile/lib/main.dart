@@ -46,13 +46,29 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+  String? _chargeSegment;
+  int _chargeVisit = 0;
+
+  void _go(int i) => setState(() => _index = i);
+
+  void _openCharge(String? segment) => setState(() {
+        _chargeSegment = segment;
+        _chargeVisit++;
+        _index = 2;
+      });
 
   @override
   Widget build(BuildContext context) {
     final pages = [
-      HomeScreen(api: widget.api, key: ValueKey('home-$_index')),
+      HomeScreen(
+        api: widget.api,
+        key: ValueKey('home-$_index'),
+        onBookTicket: () => _go(1),
+        onCharge: _openCharge,
+        onWallet: () => _go(3),
+      ),
       TravelScreen(api: widget.api),
-      ChargeScreen(api: widget.api),
+      ChargeScreen(api: widget.api, initialSegment: _chargeSegment, key: ValueKey('charge-$_chargeVisit')),
       WalletScreen(api: widget.api, key: ValueKey('wallet-$_index')),
     ];
     return Scaffold(
@@ -70,7 +86,7 @@ class _AppShellState extends State<AppShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: _go,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.directions_bus_outlined), label: 'Travel'),
