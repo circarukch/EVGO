@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
 import { ChargerEvent } from "../src/handlers.js";
+import { basicAuthPassword } from "../src/core-api.js";
 import { OcppGateway, chargePointIdFrom } from "../src/server.js";
+import { IncomingMessage } from "node:http";
 
 let gateway: OcppGateway;
 let port: number;
@@ -16,6 +18,7 @@ beforeEach(async () => {
     authorizer: { authorize: async (_cp, tag) => (blocked.has(tag) ? "Blocked" : "Accepted") },
     checkAuth: (id) => id !== "ROGUE",
     callTimeoutMs: 2000,
+    controlKey: "test-key",
   });
   port = await gateway.listen(0);
 });
@@ -74,7 +77,7 @@ describe("OcppGateway", () => {
 
     const stopped = events.find((e) => e.type === "session.stopped");
     expect(stopped).toMatchObject({ chargePointId: "CP-1", transactionId: txId, energyWh: 7500 });
-    expect(events.map((e) => e.type)).toEqual(["charger.booted", "session.started", "session.meter", "session.stopped"]);
+    expect(events.map((e) => e.type)).toEqual(["charger.connected", "charger.booted", "session.started", "session.meter", "session.stopped"]);
     ws.close();
   });
 
@@ -105,5 +108,38 @@ describe("OcppGateway", () => {
     expect(res).toMatchObject({ status: "Accepted", echo: "RemoteStartTransaction" });
     await expect(gateway.sendCall("NOPE", "Reset", { type: "Soft" })).rejects.toThrow("not connected");
     ws.close();
+  });
+
+  it("reports connect, heartbeat and disconnect so the console can show online/offline", async () => {
+    const { ws, call } = await connect("CP-5");
+    await call("Heartbeat", {});
+    ws.close();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(events.filter((e) => e.chargePointId === "CP-5").map((e) => e.type)).toEqual(["charger.connected", "charger.heartbeat", "charger.disconnected"]);
+  });
+
+  it("takes commands from the core API over HTTP, only with the key", async () => {
+    const { ws } = await connect("CP-6");
+    await new Promise((r) => setTimeout(r, 20));
+    const send = (key: string, body: object) =>
+      fetch(`http://localhost:${port}/commands`, { method: "POST", headers: { "content-type": "application/json", "x-gateway-key": key }, body: JSON.stringify(body) });
+    expect((await send("wrong", { chargePointId: "CP-6", action: "Reset", payload: { type: "Soft" } })).status).toBe(401);
+    expect((await send("test-key", { chargePointId: "CP-6", action: "DeleteEverything" })).status).toBe(400);
+    const ok = await send("test-key", { chargePointId: "CP-6", action: "UnlockConnector", payload: { connectorId: 1 } });
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toMatchObject({ status: "Accepted", echo: "UnlockConnector" });
+    expect((await send("test-key", { chargePointId: "GONE", action: "Reset", payload: {} })).status).toBe(502);
+    ws.close();
+  });
+});
+
+describe("basicAuthPassword", () => {
+  const req = (auth?: string) => ({ headers: auth ? { authorization: auth } : {} }) as IncomingMessage;
+  const b64 = (s: string) => Buffer.from(s).toString("base64");
+  it("reads the password when the username is the charger ID", () => {
+    expect(basicAuthPassword("GNT-01", req(`Basic ${b64("GNT-01:s3cret:with:colons")}`))).toBe("s3cret:with:colons");
+    expect(basicAuthPassword("GNT-01", req(`Basic ${b64("OTHER:s3cret")}`))).toBeNull();
+    expect(basicAuthPassword("GNT-01", req())).toBeNull();
+    expect(basicAuthPassword("GNT-01", req("Bearer abc"))).toBeNull();
   });
 });

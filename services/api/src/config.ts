@@ -48,6 +48,13 @@ function paymentGateway(): PaymentGatewayConfig {
   return { kind: "none" };
 }
 
+function gatewayApiKey(): string {
+  const k = process.env.GATEWAY_API_KEY;
+  if (k) return k;
+  if (env === "production") throw new Error("GATEWAY_API_KEY must be set in production");
+  return "dev-gateway-key";
+}
+
 export const config = {
   env,
   jwtSecret: jwtSecret(),
@@ -67,6 +74,12 @@ export const config = {
   chargingSimSpeedup: Number(process.env.CHARGING_SIM_SPEEDUP ?? 1),
   /** Wallet balance needed to start a charging session (₹100). */
   chargingMinStartPaise: 10_000,
+  /** Shared secret between this API and the OCPP gateway (both directions). */
+  gatewayApiKey: gatewayApiKey(),
+  /** Where the API sends commands for chargers (the gateway's control port). */
+  ocppGatewayUrl: process.env.OCPP_GATEWAY_URL ?? "http://localhost:9000",
+  /** The address installers type into the charger; the charge point ID is appended. */
+  ocppPublicUrl: process.env.OCPP_PUBLIC_URL ?? (env === "production" ? "wss://ocpp.evgo.in/ocpp" : "ws://localhost:9000/ocpp"),
   paymentGateway: paymentGateway(),
   /** Largest UPI block for one charging session (₹10,000, the usual UPI block limit). */
   upiBlockMaxPaise: 1_000_000,

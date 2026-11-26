@@ -15,6 +15,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <p className="sub">Operator console</p>
           <ul>
             <li><a href="/">Chargers</a></li>
+            <li><a href="/stations">Stations</a></li>
             <li>Sessions</li>
             <li>Tariffs</li>
             <li>Routes and trips</li>

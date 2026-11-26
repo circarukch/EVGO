@@ -20,3 +20,11 @@ export async function adminFetch(path: string, init: RequestInit = {}) {
 
 export type RefundTier = { minHoursBefore: number; refundPercent: number };
 export type Operator = { id: string; name: string; cancellationPolicy: { tiers: RefundTier[]; isDefault: boolean } };
+
+export type { ChargerView, Connection, Plug, Station } from "./stations";
+
+export async function apiError(res: Response, fallback: string): Promise<string> {
+  const body = await res.json().catch(() => ({}));
+  const m = (body as { message?: unknown }).message;
+  return typeof m === "string" ? m : Array.isArray(m) ? m.join(", ") : `${fallback} (${res.status})`;
+}

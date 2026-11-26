@@ -6,11 +6,12 @@ import { ChargingModule } from "./charging/charging.module";
 import { HealthController } from "./health/health.controller";
 import { PaymentsModule } from "./payments/payments.module";
 import { PrismaModule } from "./prisma/prisma.service";
+import { StationsModule } from "./stations/stations.module";
 import { WalletModule } from "./wallet/wallet.module";
 
 // Modules from the plan still to come: Messaging, payouts to operators.
 @Module({
-  imports: [PrismaModule, PaymentsModule, AuthModule, CatalogModule, WalletModule, BookingModule, ChargingModule],
+  imports: [PrismaModule, PaymentsModule, AuthModule, CatalogModule, WalletModule, BookingModule, ChargingModule, StationsModule],
   controllers: [HealthController],
 })
 export class AppModule {}
