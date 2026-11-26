@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: EVGO API
-  version: 0.4.0
+  version: 0.5.0
   description: >
     Single API for the EVGO customer apps (Flutter mobile, Next.js web) and the
     operator console. Typed clients for Dart and TypeScript are generated from
@@ -219,14 +219,22 @@ paths:
             schema: { type: object, required: [amountPaise], properties: { amountPaise: { type: integer } } }
       responses:
         "201":
-          description: Pending top-up. gateway is "mock" on development servers.
+          description: "Pending top-up and the Cashfree checkout to open (gateway is \"mock\" on development servers)."
           content:
             application/json:
-              schema: { type: object, properties: { topUpId: { type: string }, amountPaise: { type: integer }, status: { type: string }, gateway: { type: string } } }
+              schema: { type: object, properties: { topUpId: { type: string }, amountPaise: { type: integer }, status: { type: string }, gateway: { type: string }, checkout: { type: object, properties: { gatewayOrderId: { type: string }, paymentSessionId: { type: string }, environment: { type: [string, "null"], enum: [SANDBOX, PRODUCTION, null] } } } } }
         "400": { description: Amount out of range }
+        "503": { description: Online payments not switched on }
+  /wallet/topups/{id}/check:
+    post:
+      summary: After the checkout closes, ask whether the top-up was paid. Credits the wallet once.
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "201": { description: "status is SUCCEEDED, PENDING or FAILED; balancePaise." }
   /wallet/topups/{id}/mock-confirm:
     post:
-      summary: Development only. Stands in for the payment gateway's success webhook.
+      summary: Development only. Stands in for paying on the checkout (body method upi, card or netbanking).
       security: [{ bearer: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses:
@@ -289,6 +297,34 @@ paths:
         "402": { description: "Wallet short. Body has balancePaise and shortfallPaise." }
         "409": { description: Already paid or cancelled }
         "410": { description: Hold expired }
+  /bookings/{id}/checkout:
+    post:
+      summary: Pay for held seats by UPI, card or netbanking on Cashfree's checkout. Returns the checkout to open.
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "201":
+          description: Checkout opened
+          content:
+            application/json:
+              schema: { type: object, properties: { orderId: { type: string }, paymentId: { type: string }, gateway: { type: string }, amountPaise: { type: integer }, holdExpiresAt: { type: string, format: date-time }, checkout: { type: object, properties: { gatewayOrderId: { type: string }, paymentSessionId: { type: string }, environment: { type: [string, "null"], enum: [SANDBOX, PRODUCTION, null] } } } } }
+        "409": { description: Already paid or cancelled }
+        "410": { description: Hold expired }
+        "503": { description: Online payments not switched on }
+  /bookings/{id}/checkout/check:
+    post:
+      summary: "After the checkout closes: issue tickets if paid. If the seats were released before the money arrived, the order is CANCELLED and refunded in full."
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "201": { description: "status PAID (with tickets and payment.method), PENDING, or CANCELLED (with refunds and message)." }
+  /bookings/{id}/checkout/mock-pay:
+    post:
+      summary: Development only. Stands in for paying on the checkout (body method upi, card or netbanking).
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "201": { description: Same as check }
   /bookings/{id}/hold:
     delete:
       summary: Release unpaid held seats
@@ -298,12 +334,18 @@ paths:
         "200": { description: Released }
   /bookings/{id}/cancel:
     post:
-      summary: "Cancel a paid booking. Refund to wallet: 90% at 24h or more before departure, 50% at 6 to 24h, closed under 6h."
+      summary: "Cancel a paid booking under the operator's policy (default 90% at 24h or more before departure, 50% at 6 to 24h, closed under 6h). The refund goes back the way the customer paid: wallet, or through Cashfree to UPI, card or bank."
       security: [{ bearer: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses:
-        "201": { description: "Cancelled. Body has refundPaise, cancellationFeePaise, balancePaise." }
+        "201": { description: "Cancelled. Body has refundPaise, cancellationFeePaise, refundTo (wallet, upi, card, netbanking…), refundStatus (SUCCEEDED, PENDING), balancePaise." }
         "400": { description: Too close to departure }
+  /payments/cashfree/webhook:
+    post:
+      summary: "Cashfree payment and refund webhooks. Signed (x-webhook-signature = base64 HMAC-SHA256 of x-webhook-timestamp + raw body with the secret key). Only triggers a status check with Cashfree."
+      responses:
+        "200": { description: Received }
+        "401": { description: Bad signature }
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }

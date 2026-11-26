@@ -3,6 +3,7 @@ import { config } from "../config";
 import { CashfreePaymentGateway } from "./cashfree.gateway";
 import { PAYMENT_GATEWAY } from "./gateway";
 import { MockPaymentGateway, NotConfiguredPaymentGateway } from "./mock.gateway";
+import { RefundsService } from "./refunds.service";
 
 @Global()
 @Module({
@@ -16,7 +17,8 @@ import { MockPaymentGateway, NotConfiguredPaymentGateway } from "./mock.gateway"
         return new NotConfiguredPaymentGateway();
       },
     },
+    RefundsService,
   ],
-  exports: [PAYMENT_GATEWAY],
+  exports: [PAYMENT_GATEWAY, RefundsService],
 })
 export class PaymentsModule {}

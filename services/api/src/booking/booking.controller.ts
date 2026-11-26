@@ -29,6 +29,25 @@ export class BookingController {
     return this.bookings.payWithWallet(user.id, id);
   }
 
+  /** Pay by UPI, card or netbanking on Cashfree's checkout. */
+  @Post("bookings/:id/checkout")
+  @UseGuards(AuthGuard)
+  checkout(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.bookings.startCheckout(user.id, id);
+  }
+
+  @Post("bookings/:id/checkout/check")
+  @UseGuards(AuthGuard)
+  check(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.bookings.checkCheckout(user.id, id);
+  }
+
+  @Post("bookings/:id/checkout/mock-pay")
+  @UseGuards(AuthGuard)
+  mockPay(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: { method?: string }) {
+    return this.bookings.mockPayCheckout(user.id, id, body?.method);
+  }
+
   @Delete("bookings/:id/hold")
   @UseGuards(AuthGuard)
   release(@CurrentUser() user: AuthUser, @Param("id") id: string) {

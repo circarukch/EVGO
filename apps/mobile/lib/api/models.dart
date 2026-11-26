@@ -486,3 +486,85 @@ String refundPolicyText(List<RefundTier> refundTiers) {
   final parts = [for (final t in refundTiers) '${h(t.minHoursBefore)}+ before: ${t.refundPercent}% back'];
   return 'Cancel ${parts.join(' · ')}. Closes ${h(refundTiers.last.minHoursBefore)} before departure.';
 }
+
+/// What the app needs to open the payment gateway's checkout (Cashfree, or the mock in test mode).
+class CheckoutSession {
+  CheckoutSession(
+      {required this.gateway, required this.gatewayOrderId, required this.paymentSessionId, this.environment, required this.amountPaise});
+
+  factory CheckoutSession.fromJson(Map<String, dynamic> j, String gateway, int amountPaise) => CheckoutSession(
+        gateway: gateway,
+        gatewayOrderId: j['gatewayOrderId'] as String,
+        paymentSessionId: j['paymentSessionId'] as String,
+        environment: j['environment'] as String?,
+        amountPaise: amountPaise,
+      );
+
+  /// "cashfree" or "mock".
+  final String gateway;
+  final String gatewayOrderId;
+  final String paymentSessionId;
+
+  /// SANDBOX or PRODUCTION (Cashfree only).
+  final String? environment;
+  final int amountPaise;
+
+  bool get isMock => gateway == 'mock';
+}
+
+/// Where a ticket payment stands after checkout: PAID with tickets, still PENDING, or CANCELLED and refunded.
+class TicketPayment {
+  TicketPayment({required this.status, required this.tickets, this.method, this.message});
+
+  factory TicketPayment.fromJson(Map<String, dynamic> j) => TicketPayment(
+        status: j['status'] as String,
+        tickets: ((j['tickets'] as List?) ?? const []).map((t) => Ticket.fromJson(t as Map<String, dynamic>)).toList(),
+        method: (j['payment'] as Map<String, dynamic>?)?['method'] as String?,
+        message: j['message'] as String?,
+      );
+
+  final String status;
+  final List<Ticket> tickets;
+  final String? method;
+  final String? message;
+}
+
+/// After a cancellation: how much comes back, and where to.
+class CancelResult {
+  CancelResult({required this.refundPaise, this.refundTo, this.refundStatus});
+
+  factory CancelResult.fromJson(Map<String, dynamic> j) => CancelResult(
+        refundPaise: j['refundPaise'] as int,
+        refundTo: j['refundTo'] as String?,
+        refundStatus: j['refundStatus'] as String?,
+      );
+
+  final int refundPaise;
+
+  /// wallet, upi, card, netbanking, … or null when nothing is refunded.
+  final String? refundTo;
+  final String? refundStatus;
+
+  String get message {
+    if (refundPaise == 0) return 'Cancelled. No refund at this time before departure';
+    if (refundTo == null || refundTo == 'wallet') return 'Cancelled. ${rupees(refundPaise)} refunded to your wallet';
+    final where = switch (refundTo) {
+      'upi' => 'your UPI account',
+      'card' => 'your card',
+      'netbanking' => 'your bank account',
+      _ => 'where you paid from'
+    };
+    return 'Cancelled. ${rupees(refundPaise)} is on its way back to $where (usually 3 to 5 working days)';
+  }
+}
+
+/// How a payment method reads on screen.
+String paymentMethodLabel(String? method) => switch (method) {
+      'wallet' => 'EVGO wallet',
+      'upi' => 'UPI',
+      'card' => 'Card',
+      'netbanking' => 'Netbanking',
+      'app_wallet' => 'Wallet app',
+      null => '-',
+      _ => method.toUpperCase(),
+    };

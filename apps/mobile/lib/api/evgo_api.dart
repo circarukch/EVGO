@@ -184,19 +184,42 @@ class EvgoApi {
     return list.map((j) => BookingSummary.fromJson(j as Map<String, dynamic>)).toList();
   }
 
-  Future<int> cancelBooking(String orderId) async {
-    final r = await _post('/bookings/$orderId/cancel') as Map<String, dynamic>;
-    return r['refundPaise'] as int;
+  /// Starts paying for held seats by UPI, card or netbanking on the gateway's checkout.
+  Future<CheckoutSession> startTicketCheckout(String orderId) async {
+    final r = await _post('/bookings/$orderId/checkout') as Map<String, dynamic>;
+    return CheckoutSession.fromJson(r['checkout'] as Map<String, dynamic>, r['gateway'] as String, r['amountPaise'] as int);
   }
+
+  /// After checkout closes: issues the tickets if the payment went through.
+  Future<TicketPayment> checkTicketCheckout(String orderId) async =>
+      TicketPayment.fromJson(await _post('/bookings/$orderId/checkout/check') as Map<String, dynamic>);
+
+  /// Test mode only: stands in for paying on the checkout.
+  Future<TicketPayment> mockPayTicket(String orderId, String method) async =>
+      TicketPayment.fromJson(await _post('/bookings/$orderId/checkout/mock-pay', {'method': method}) as Map<String, dynamic>);
+
+  Future<CancelResult> cancelBooking(String orderId) async =>
+      CancelResult.fromJson(await _post('/bookings/$orderId/cancel') as Map<String, dynamic>);
 
   // ---- Wallet ----
 
   Future<WalletSummary> wallet() async => WalletSummary.fromJson(await _get('/wallet') as Map<String, dynamic>);
 
-  /// Adds money. In development the payment is confirmed by the mock gateway;
-  /// production opens the Razorpay or Cashfree checkout here instead.
-  Future<void> addMoney(int amountPaise) async {
+  /// Starts adding money: returns the top-up id and the checkout to open.
+  Future<(String, CheckoutSession)> startTopUp(int amountPaise) async {
     final t = await _post('/wallet/topups', {'amountPaise': amountPaise}) as Map<String, dynamic>;
-    if (t['gateway'] == 'mock') await _post('/wallet/topups/${t['topUpId']}/mock-confirm');
+    return (t['topUpId'] as String, CheckoutSession.fromJson(t['checkout'] as Map<String, dynamic>, t['gateway'] as String, amountPaise));
+  }
+
+  /// After checkout closes: SUCCEEDED, PENDING or FAILED.
+  Future<String> checkTopUp(String topUpId) async {
+    final r = await _post('/wallet/topups/$topUpId/check') as Map<String, dynamic>;
+    return r['status'] as String;
+  }
+
+  /// Test mode only: stands in for paying on the checkout.
+  Future<String> mockPayTopUp(String topUpId, String method) async {
+    final r = await _post('/wallet/topups/$topUpId/mock-confirm', {'method': method}) as Map<String, dynamic>;
+    return r['status'] as String;
   }
 }

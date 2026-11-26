@@ -9,5 +9,6 @@ import { CancellationPolicyService } from "./cancellation-policy.service";
   imports: [WalletModule],
   controllers: [BookingController, AdminController],
   providers: [BookingService, CancellationPolicyService],
+  exports: [BookingService],
 })
 export class BookingModule {}

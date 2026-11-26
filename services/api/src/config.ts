@@ -24,9 +24,9 @@ function chargerControl(): "simulated" | "gateway" {
 type PaymentGatewayConfig =
   | { kind: "mock" }
   | { kind: "none" }
-  | { kind: "cashfree"; appId: string; secretKey: string; baseUrl: string; apiVersion: string };
+  | { kind: "cashfree"; appId: string; secretKey: string; baseUrl: string; apiVersion: string; notifyUrl?: string };
 
-/** "mock" outside production; Cashfree once its keys are set; otherwise paying by UPI is off. */
+/** "mock" outside production; Cashfree once its keys are set; otherwise online payments are off. */
 function paymentGateway(): PaymentGatewayConfig {
   const v = process.env.PAYMENT_GATEWAY ?? (env === "production" ? "cashfree" : "mock");
   if (v === "mock") {
@@ -43,6 +43,8 @@ function paymentGateway(): PaymentGatewayConfig {
       secretKey,
       baseUrl: process.env.CASHFREE_BASE_URL ?? (env === "production" ? "https://api.cashfree.com" : "https://sandbox.cashfree.com"),
       apiVersion: process.env.CASHFREE_API_VERSION ?? "2025-01-01",
+      // Where Cashfree sends payment and refund webhooks, e.g. https://api.evgo.in/v1/payments/cashfree/webhook
+      notifyUrl: process.env.CASHFREE_NOTIFY_URL,
     };
   }
   return { kind: "none" };

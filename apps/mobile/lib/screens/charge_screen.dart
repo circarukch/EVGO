@@ -4,6 +4,7 @@ import '../api/evgo_api.dart';
 import '../api/models.dart';
 import '../brand.dart';
 import 'charging_session_screen.dart';
+import 'checkout.dart';
 import 'pay_sheet.dart';
 import 'station_map.dart';
 import 'station_sheet.dart';
@@ -107,8 +108,7 @@ class _ChargeScreenState extends State<ChargeScreen> {
             : SnackBarAction(
                 label: 'Add ${rupees(shortfall)}',
                 onPressed: () async {
-                  await widget.api.addMoney(shortfall);
-                  await _startFromWallet(chargePointId, connectorId);
+                  if (await addMoneyWithCheckout(context, widget.api, shortfall)) await _startFromWallet(chargePointId, connectorId);
                 },
               ),
       ));
