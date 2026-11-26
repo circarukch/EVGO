@@ -1,0 +1,108 @@
+openapi: 3.1.0
+info:
+  title: EVGO API
+  version: 0.1.0
+  description: >
+    Single API for the EVGO customer apps (Flutter mobile, Next.js web) and the
+    operator console. Typed clients for Dart and TypeScript are generated from
+    this file so booking, pricing and wallet types stay in sync.
+servers:
+  - url: http://localhost:3001/v1
+paths:
+  /health:
+    get:
+      summary: Service health
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { ok: { type: boolean }, service: { type: string } } }
+  /trips:
+    get:
+      summary: Search bus trips between two cities
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string }, example: Guntur }
+        - { name: to, in: query, required: true, schema: { type: string }, example: Hyderabad }
+      responses:
+        "200":
+          description: Matching trips
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/TripSummary" } }
+        "400": { description: from or to missing }
+  /chargers:
+    get:
+      summary: Search public chargers
+      parameters:
+        - name: segment
+          in: query
+          schema: { $ref: "#/components/schemas/Segment" }
+        - { name: city, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Matching chargers
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Charger" } }
+  /chargers/{id}:
+    get:
+      summary: Charger detail
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Charger
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Charger" }
+        "404": { description: Not found }
+components:
+  schemas:
+    Segment:
+      type: string
+      enum: ["2W", "3W", "4W", "BUS", "TRUCK"]
+    Place:
+      type: object
+      required: [id, name, city, lat, lng]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        city: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+    TripSummary:
+      type: object
+      required: [id, operator, from, to, departs, arrives, busType, seatsLeft, fareInr, chargersAtBoarding]
+      properties:
+        id: { type: string }
+        operator: { type: string }
+        from: { type: string }
+        to: { type: string }
+        departs: { type: string, example: "06:00" }
+        arrives: { type: string, example: "11:30" }
+        busType: { type: string }
+        seatsLeft: { type: integer }
+        fareInr: { type: integer }
+        chargersAtBoarding:
+          type: integer
+          description: Public chargers at the boarding point (powers the park, charge, ride journey)
+    Connector:
+      type: object
+      required: [id, type, powerKw, status]
+      properties:
+        id: { type: integer }
+        type: { type: string, enum: [CCS2, Type2, GBT, LEV_AC, LECCS] }
+        powerKw: { type: number }
+        status: { type: string }
+    Charger:
+      type: object
+      required: [id, operator, connectors, segments, access, pricePerKwhInr]
+      properties:
+        id: { type: string }
+        operator: { type: string }
+        connectors: { type: array, items: { $ref: "#/components/schemas/Connector" } }
+        segments: { type: array, items: { $ref: "#/components/schemas/Segment" } }
+        access: { type: string, enum: [public, fleet_only] }
+        pricePerKwhInr: { type: number }
+        place: { $ref: "#/components/schemas/Place" }

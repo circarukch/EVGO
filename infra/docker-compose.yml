@@ -1,0 +1,18 @@
+# Local development stack: PostgreSQL (PostGIS + TimescaleDB) and Redis.
+# Usage: docker compose -f infra/docker-compose.yml up -d
+services:
+  db:
+    image: timescale/timescaledb-ha:pg16
+    environment:
+      POSTGRES_USER: evgo
+      POSTGRES_PASSWORD: evgo_dev_only
+      POSTGRES_DB: evgo
+    ports: ["5432:5432"]
+    volumes:
+      - dbdata:/home/postgres/pgdata
+      - ./db/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+volumes:
+  dbdata:
