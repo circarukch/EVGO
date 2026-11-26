@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: EVGO API
-  version: 0.3.0
+  version: 0.4.0
   description: >
     Single API for the EVGO customer apps (Flutter mobile, Next.js web) and the
     operator console. Typed clients for Dart and TypeScript are generated from
@@ -110,6 +110,16 @@ paths:
         "404": { description: Unknown charger or connector }
         "409": { description: Connector busy or out of service, or a session already running }
         "503": { description: Charger did not respond, or app charging not switched on }
+    get:
+      summary: The user's latest charging sessions, the running one first (for Home)
+      security: [{ bearer: [] }]
+      parameters: [{ name: limit, in: query, schema: { type: integer, default: 5, maximum: 20 } }]
+      responses:
+        "200":
+          description: Sessions
+          content:
+            application/json:
+              schema: { type: object, properties: { sessions: { type: array, items: { $ref: "#/components/schemas/ChargingSession" } } } }
   /charging/sessions/active:
     get:
       summary: The caller's running session, if any
@@ -131,6 +141,57 @@ paths:
       responses:
         "201": { description: Stopped and billed. Includes balancePaise. }
         "409": { description: Already stopped }
+  /charging/upi-blocks:
+    post:
+      summary: Pay by UPI with no wallet. Block an amount (₹100 to ₹10,000) for a session; the customer approves in their UPI app
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [chargePointId, connectorId, amountPaise]
+              properties:
+                chargePointId: { type: string }
+                connectorId: { type: integer }
+                amountPaise: { type: integer, example: 50000 }
+      responses:
+        "201": { description: Waiting for approval, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentBlock" } } } }
+        "400": { description: Amount out of range }
+        "409": { description: Connector busy or out of service, or a session already running }
+        "503": { description: Paying by UPI is not switched on }
+  /charging/upi-blocks/{id}/start:
+    post:
+      summary: Call after the customer returns from the UPI app (safe to repeat). Starts charging once the amount is blocked
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "201":
+          description: "session is null while approval is pending"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  block: { $ref: "#/components/schemas/PaymentBlock" }
+                  session: { oneOf: [{ $ref: "#/components/schemas/ChargingSession" }, { type: "null" }] }
+        "402": { description: Declined or expired in the UPI app }
+        "409": { description: Connector taken meanwhile; the block is released }
+  /charging/upi-blocks/{id}:
+    delete:
+      summary: Give up before charging starts; releases the block
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: Released, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentBlock" } } } }
+  /charging/upi-blocks/{id}/mock-approve:
+    post:
+      summary: Development only. Stands in for approving in the UPI app (mock-decline declines)
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "201": { description: Approved }
   /wallet:
     get:
       summary: Wallet balance and latest 50 movements
@@ -209,10 +270,15 @@ paths:
               schema: { type: object, properties: { orderId: { type: string }, status: { type: string }, totalPaise: { type: integer }, expiresAt: { type: string, format: date-time }, seats: { type: array, items: { type: string } } } }
         "409": { description: A seat is already held or booked }
     get:
-      summary: My bus bookings
+      summary: My bus bookings, with everything the ticket screen shows
       security: [{ bearer: [] }]
       responses:
-        "200": { description: Bookings with tickets }
+        "200":
+          description: >
+            Bookings newest first. Each has orderId, status, totalPaise, bookedAt, route, departsAt, departs (IST HH:mm),
+            boarding and dropping ({ name, city, at, time }), operator, bus ({ registration } or null),
+            payment ({ method, amountPaise, at } or null), refundPaise, cancellationPolicy (refund tiers),
+            and tickets ({ ticketCode, seatLabel, passengerName, status, farePaise }).
   /bookings/{id}/pay:
     post:
       summary: Pay for held seats from the wallet and issue tickets
@@ -290,11 +356,36 @@ components:
         perKwhInr: { type: number }
         startedAt: { type: string, format: date-time }
         stoppedAt: { type: [string, "null"], format: date-time }
-        stopReason: { type: [string, "null"], example: WalletLimit }
+        stopReason: { type: [string, "null"], description: "WalletLimit or AmountLimit when the money ran out", example: WalletLimit }
         energyKwh: { type: number }
         powerKw: { type: number }
         costPaise: { type: integer }
-        balancePaise: { type: integer, description: Only on the stop response }
+        balancePaise: { type: integer, description: Only on the stop response of a wallet session }
+        maxCostPaise: { type: integer }
+        city: { type: string }
+        operator: { type: string }
+        connectorPowerKw: { type: [number, "null"] }
+        current: { type: string, enum: [AC, DC] }
+        orderId: { type: [string, "null"], description: Set once billed; doubles as the receipt number }
+        paymentRef: { type: [string, "null"], description: Gateway reference of the UPI payment }
+        payment:
+          type: object
+          properties:
+            method: { type: string, enum: [wallet, upi] }
+            blockedPaise: { type: integer }
+            capturedPaise: { type: integer }
+            releasedPaise: { type: integer, description: Back to the customer's bank once stopped }
+            status: { type: string }
+    PaymentBlock:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [PENDING, AUTHORIZED, IN_USE, CAPTURED, RELEASED, FAILED, EXPIRED, CAPTURE_FAILED] }
+        gateway: { type: string, enum: [mock, cashfree] }
+        amountPaise: { type: integer }
+        capturedPaise: { type: integer }
+        approveBy: { type: string, format: date-time }
+        upiIntentUrl: { type: string, description: "upi:// link that opens the customer's UPI app; only on create" }
     Connector:
       type: object
       required: [id, type, powerKw, status]

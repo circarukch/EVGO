@@ -24,7 +24,9 @@ interface SimTx {
  * `speedup` makes demo sessions move faster than real time (30 = one real minute is 30 charging minutes).
  */
 export class SimulatedChargerControl implements ChargerControl {
-  private nextTx = 1;
+  // Real chargers never reuse a transaction id; start from the clock so a restarted simulator does not either.
+  private nextTx = Date.now() % 2_000_000_000;
+  private started = 0;
   private readonly tx = new Map<string, SimTx>();
   private offsetMs = 0;
 
@@ -43,7 +45,7 @@ export class SimulatedChargerControl implements ChargerControl {
 
   async start(req: { chargePointId: string; connectorId: number; maxPowerKw: number }) {
     const transactionId = this.nextTx++;
-    const meterStartWh = 1_000_000 + transactionId * 10_000;
+    const meterStartWh = 1_000_000 + ++this.started * 10_000;
     this.tx.set(this.key(req.chargePointId, transactionId), { startedAt: this.now(), meterStartWh, powerKw: req.maxPowerKw * 0.85 });
     return { transactionId, meterStartWh };
   }

@@ -4,6 +4,7 @@ import '../api/evgo_api.dart';
 import '../api/models.dart';
 import '../brand.dart';
 import 'charging_session_screen.dart';
+import 'pay_sheet.dart';
 import 'station_map.dart';
 import 'station_sheet.dart';
 
@@ -45,7 +46,9 @@ class _ChargeScreenState extends State<ChargeScreen> {
 
   void _reload() {
     final f = widget.api.searchChargers(segment: _segment);
-    setState(() => _chargers = f);
+    setState(() {
+      _chargers = f;
+    });
     _loadActive();
   }
 
@@ -66,7 +69,31 @@ class _ChargeScreenState extends State<ChargeScreen> {
     _reload();
   }
 
-  Future<void> _start(String chargePointId, int connectorId) async {
+  /// Ask how to pay (UPI by default, wallet optional), then start.
+  Future<void> _start(String chargePointId, int connectorId, {double? powerKw, String? title}) async {
+    final choice = await showPaySheet(context, title: title ?? '$chargePointId #$connectorId', powerKw: powerKw);
+    if (!mounted || choice == null) return;
+    switch (choice) {
+      case PayByWallet():
+        await _startFromWallet(chargePointId, connectorId);
+      case PayByUpi(:final amountPaise):
+        await _startWithUpi(chargePointId, connectorId, amountPaise);
+    }
+  }
+
+  Future<void> _startWithUpi(String chargePointId, int connectorId, int amountPaise) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final block = await widget.api.createUpiBlock(chargePointId, connectorId, amountPaise);
+      if (!mounted) return;
+      final session = await approveAndStart(context, widget.api, block);
+      if (session != null) await _openSession(session);
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  Future<void> _startFromWallet(String chargePointId, int connectorId) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final s = await widget.api.startCharging(chargePointId, connectorId);
@@ -81,7 +108,7 @@ class _ChargeScreenState extends State<ChargeScreen> {
                 label: 'Add ${rupees(shortfall)}',
                 onPressed: () async {
                   await widget.api.addMoney(shortfall);
-                  await _start(chargePointId, connectorId);
+                  await _startFromWallet(chargePointId, connectorId);
                 },
               ),
       ));
@@ -152,81 +179,67 @@ class _ChargeScreenState extends State<ChargeScreen> {
                   onTap: () => _openSession(_active!),
                 ),
               ),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+            Container(
+              margin: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 2))],
+              ),
               child: Row(
                 children: [
-                  ChoiceChip(
-                    label: const Text('All vehicles'),
-                    selected: _segment == null,
-                    onSelected: (_) {
-                      _segment = null;
+                  _FilterTile<String>(
+                    key: const Key('filter-vehicle'),
+                    icon: Icons.directions_car_outlined,
+                    caption: 'Vehicle',
+                    value: _segment == null ? 'Any' : segments[_segment]!,
+                    active: _segment != null,
+                    onSelected: (v) {
+                      _segment = v == '' ? null : v;
                       _reload();
                     },
+                    items: [
+                      const PopupMenuItem(value: '', child: Text('Any vehicle')),
+                      for (final e in segments.entries) PopupMenuItem(value: e.key, child: Text(e.value)),
+                    ],
                   ),
-                  for (final e in segments.entries)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 6),
-                      child: ChoiceChip(
-                        label: Text(e.value),
-                        selected: _segment == e.key,
-                        onSelected: (_) {
-                          _segment = e.key;
-                          _reload();
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          PopupMenuButton<String>(
-                            key: const Key('filter-current'),
-                            tooltip: 'AC or DC',
-                            onSelected: (v) => setState(() => _current = v == '' ? null : v),
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(value: '', child: Text('AC and DC')),
-                              PopupMenuItem(value: 'DC', child: Text('DC fast chargers')),
-                              PopupMenuItem(value: 'AC', child: Text('AC chargers')),
-                            ],
-                            child: _FilterChip(icon: Icons.bolt, label: _current ?? 'AC / DC', active: _current != null),
-                          ),
-                          const SizedBox(width: 6),
-                          PopupMenuButton<double>(
-                            key: const Key('filter-power'),
-                            tooltip: 'Charger power',
-                            onSelected: (v) => setState(() => _minKw = v == 0 ? null : v),
-                            itemBuilder: (_) => [
-                              const PopupMenuItem(value: 0, child: Text('Any power')),
-                              for (final kw in powerSteps) PopupMenuItem(value: kw, child: Text('${kwLabel(kw)} and above')),
-                            ],
-                            child: _FilterChip(
-                                icon: Icons.speed, label: _minKw == null ? 'Any kW' : '${kwLabel(_minKw!)}+', active: _minKw != null),
-                          ),
-                          const SizedBox(width: 6),
-                          PopupMenuButton<String?>(
-                            key: const Key('filter-plug'),
-                            tooltip: 'Plug type',
-                            onSelected: (v) => setState(() => _plug = v == '' ? null : v),
-                            itemBuilder: (_) => [
-                              const PopupMenuItem(value: '', child: Text('Any plug')),
-                              for (final p in plugs) PopupMenuItem(value: p, child: Text('${plugLabel(p)} (${isDcPlug(p) ? 'DC' : 'AC'})')),
-                            ],
-                            child: _FilterChip(
-                                icon: Icons.power, label: _plug == null ? 'Any plug' : plugLabel(_plug!), active: _plug != null),
-                          ),
-                        ],
-                      ),
-                    ),
+                  _FilterTile<String>(
+                    key: const Key('filter-current'),
+                    icon: Icons.bolt,
+                    caption: 'AC / DC',
+                    value: _current ?? 'Any',
+                    active: _current != null,
+                    onSelected: (v) => setState(() => _current = v == '' ? null : v),
+                    items: const [
+                      PopupMenuItem(value: '', child: Text('AC and DC')),
+                      PopupMenuItem(value: 'DC', child: Text('DC fast chargers')),
+                      PopupMenuItem(value: 'AC', child: Text('AC chargers')),
+                    ],
+                  ),
+                  _FilterTile<double>(
+                    key: const Key('filter-power'),
+                    icon: Icons.speed,
+                    caption: 'Power',
+                    value: _minKw == null ? 'Any' : '${kwLabel(_minKw!)}+',
+                    active: _minKw != null,
+                    onSelected: (v) => setState(() => _minKw = v == 0 ? null : v),
+                    items: [
+                      const PopupMenuItem(value: 0, child: Text('Any power')),
+                      for (final kw in powerSteps) PopupMenuItem(value: kw, child: Text('${kwLabel(kw)} and above')),
+                    ],
+                  ),
+                  _FilterTile<String>(
+                    key: const Key('filter-plug'),
+                    icon: Icons.power_outlined,
+                    caption: 'Plug',
+                    value: _plug == null ? 'Any' : plugLabel(_plug!),
+                    active: _plug != null,
+                    onSelected: (v) => setState(() => _plug = v == '' ? null : v),
+                    items: [
+                      const PopupMenuItem(value: '', child: Text('Any plug')),
+                      for (final p in plugs) PopupMenuItem(value: p, child: Text('${plugLabel(p)} (${isDcPlug(p) ? 'DC' : 'AC'})')),
+                    ],
                   ),
                 ],
               ),
@@ -293,7 +306,9 @@ class _ChargeScreenState extends State<ChargeScreen> {
         ]),
       );
     }
-    void open(Station s) => showStationSheet(context, s, onStart: (c, k) => _start(c.id, k.id));
+    void open(Station s) => showStationSheet(context, s,
+        onStart: (c, k) =>
+            _start(c.id, k.id, powerKw: k.powerKw, title: '${s.place.name} · ${plugLabel(k.type)} ${k.current} ${kwLabel(k.powerKw)}'));
     if (_showMap) return StationMap(stations: stations, onTap: open);
     return ListView(
       padding: const EdgeInsets.only(top: 56, bottom: 88),
@@ -315,19 +330,78 @@ class _ChargeScreenState extends State<ChargeScreen> {
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({required this.icon, required this.label, required this.active});
+/// One of the four equal filters above the map: small caption, current value, opens a menu.
+/// Brand blue when it narrows the results.
+class _FilterTile<T> extends StatelessWidget {
+  const _FilterTile({
+    super.key,
+    required this.icon,
+    required this.caption,
+    required this.value,
+    required this.active,
+    required this.onSelected,
+    required this.items,
+  });
+
   final IconData icon;
-  final String label;
+  final String caption;
+  final String value;
   final bool active;
+  final void Function(T) onSelected;
+  final List<PopupMenuEntry<T>> items;
 
   @override
-  Widget build(BuildContext context) => Chip(
-        avatar: Icon(icon, size: 18, color: active ? Colors.white : null),
-        label: Text(label, style: TextStyle(color: active ? Colors.white : null, fontWeight: active ? FontWeight.w700 : null)),
-        backgroundColor: active ? Brand.blue : null,
-        side: active ? BorderSide.none : null,
-      );
+  Widget build(BuildContext context) {
+    final fg = active ? Colors.white : const Color(0xFF1F2A30);
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: PopupMenuButton<T>(
+          tooltip: caption,
+          onSelected: onSelected,
+          itemBuilder: (_) => items,
+          position: PopupMenuPosition.under,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            height: 54,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: active ? Brand.blue : const Color(0xFFF1F6F4),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Icon(icon, size: 14, color: active ? Colors.white70 : Brand.green),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(caption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: active ? Colors.white70 : Colors.black54)),
+                  ),
+                ]),
+                const SizedBox(height: 2),
+                Row(children: [
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(value, maxLines: 1, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: fg)),
+                    ),
+                  ),
+                  Icon(Icons.expand_more, size: 16, color: fg),
+                ]),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// "GNT-HUB-01-1", "GNT-HUB-01 #1", "GNT-HUB-01/1" or the QR payload "EVGO:GNT-HUB-01:1" → (charger, connector).

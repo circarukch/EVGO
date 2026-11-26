@@ -50,6 +50,9 @@ describe("Charging from the app", () => {
     await request(http()).post(`/v1/charging/sessions/${started.body.id}/stop`).set(as(token)).expect(409);
     expect((await request(http()).get("/v1/charging/sessions/active").set(as(token)).expect(200)).body.session).toBeNull();
     await request(http()).get(`/v1/charging/sessions/${started.body.id}`).set(as(other)).expect(403);
+    const recent = (await request(http()).get("/v1/charging/sessions").set(as(token)).expect(200)).body.sessions;
+    expect(recent.map((s: { id: string }) => s.id)).toEqual([started.body.id]);
+    expect((await request(http()).get("/v1/charging/sessions").set(as(other)).expect(200)).body.sessions).toEqual([]);
   });
 
   it("stops by itself when the session has used the wallet balance", async () => {

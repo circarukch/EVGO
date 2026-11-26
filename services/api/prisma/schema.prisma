@@ -391,6 +391,8 @@ model ChargingSession {
   /// The wallet balance at start: the session stops itself before it costs more.
   maxCostPaise      Int?
   orderItemId       String?        @unique
+  /// Set when the session is paid by a UPI block instead of the wallet.
+  paymentBlockId    String?        @unique
   meterStartWh      Int
   meterStopWh       Int?
   energyWh          Int?
@@ -400,8 +402,41 @@ model ChargingSession {
   stopReason        String?
   charger           Charger        @relation(fields: [chargerId], references: [id])
   orderItem         OrderItem?     @relation(fields: [orderItemId], references: [id])
+  paymentBlock      PaymentBlock?  @relation(fields: [paymentBlockId], references: [id])
 
   @@unique([chargerId, ocppTransactionId])
+  @@index([userId, status])
+}
+
+enum PaymentBlockStatus {
+  PENDING // waiting for the customer to approve in their UPI app
+  AUTHORIZED // approved: money blocked in the customer's bank
+  IN_USE // a charging session is running on it
+  CAPTURED // the used amount was taken; the rest released
+  RELEASED // nothing taken, whole block released
+  FAILED // declined in the UPI app
+  EXPIRED // not approved in time
+  CAPTURE_FAILED // the gateway did not take the amount; retried by ops
+}
+
+/// Money blocked in the customer's bank by UPI (Cashfree pre-authorisation), so charging needs no wallet.
+model PaymentBlock {
+  id              String             @id @default(uuid())
+  userId          String
+  gateway         String
+  gatewayRef      String?            @unique
+  purpose         String // charging
+  amountPaise     Int
+  capturedPaise   Int                @default(0)
+  status          PaymentBlockStatus @default(PENDING)
+  /// What the block is for, e.g. { chargePointId, connectorId }.
+  meta            Json?
+  approveBy       DateTime
+  expiresAt       DateTime
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  chargingSession ChargingSession?
+
   @@index([userId, status])
 }
 

@@ -221,28 +221,73 @@ export class BookingService {
     });
   }
 
+  /** Everything the ticket screen shows: date, boarding and drop, bus, seats and fares, payment, refund, policy. */
   async myBookings(userId: string) {
     const orders = await this.db.order.findMany({
       where: { userId, status: { in: ["PAID", "REFUNDED", "PARTIALLY_REFUNDED"] }, items: { some: { type: "BUS_SEAT" } } },
-      include: { items: { include: { booking: { include: { trip: { include: { schedule: { include: { route: true } } } } } } } } },
+      include: {
+        payments: true,
+        items: {
+          include: {
+            booking: {
+              include: {
+                trip: {
+                  include: {
+                    bus: { include: { org: true } },
+                    schedule: { include: { route: { include: { org: true, stops: { include: { place: true }, orderBy: { sequence: "asc" } } } } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
-    return orders.map((o) => {
-      const trip = o.items[0].booking?.trip;
-      return {
+    const refunds = await this.db.ledgerEntry.findMany({
+      where: { memo: { in: orders.map((o) => `Refund ${o.id}`) }, account: { startsWith: "operator_payable:" } },
+    });
+    const policyByOrg = new Map<string, Awaited<ReturnType<CancellationPolicyService["get"]>>>();
+    const out = [];
+    for (const o of orders) {
+      const first = o.items[0].booking;
+      const trip = first?.trip;
+      const route = trip?.schedule.route;
+      const stopView = (id?: string) => {
+        const st = route?.stops.find((x) => x.id === id);
+        if (!st || !trip) return undefined;
+        const at = new Date(trip.departsAt.getTime() + st.offsetMinutes * 60_000);
+        return { name: st.place.name, city: st.place.city, at, time: istClock(at) };
+      };
+      if (route && !policyByOrg.has(route.orgId)) policyByOrg.set(route.orgId, await this.policies.get(route.orgId));
+      const fares = trip
+        ? await this.db.tripSeatInventory.findMany({ where: { tripId: trip.id, seatLabel: { in: o.items.map((i) => i.booking?.seatLabel ?? "") } } })
+        : [];
+      const paid = o.payments.find((p) => p.status === "SUCCEEDED");
+      out.push({
         orderId: o.id,
         status: o.status,
         totalPaise: o.totalPaise,
-        route: trip?.schedule.route.name,
+        bookedAt: o.createdAt,
+        route: route?.name,
         departsAt: trip?.departsAt,
         departs: trip ? istClock(trip.departsAt) : undefined,
+        boarding: stopView(first?.boardingStopId),
+        dropping: stopView(first?.droppingStopId),
+        operator: route?.org.name,
+        bus: trip?.bus ? { registration: trip.bus.registration } : null,
+        payment: paid ? { method: paid.method, amountPaise: paid.amountPaise, at: paid.createdAt } : null,
+        refundPaise: refunds.filter((r) => r.memo === `Refund ${o.id}`).reduce((sum, r) => sum + r.debitPaise, 0),
+        cancellationPolicy: route ? policyByOrg.get(route.orgId)!.tiers : [],
         tickets: o.items.map((i) => ({
           ticketCode: i.booking?.ticketCode,
           seatLabel: i.booking?.seatLabel,
           passengerName: i.booking?.passengerName,
           status: i.booking?.status,
+          farePaise: fares.find((f) => f.seatLabel === i.booking?.seatLabel)?.farePaise ?? i.amountPaise,
         })),
-      };
-    });
+      });
+    }
+    return out;
   }
 }
