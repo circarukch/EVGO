@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'api/evgo_api.dart';
 import 'screens/charge_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/travel_screen.dart';
 import 'screens/wallet_screen.dart';
 
@@ -10,20 +11,24 @@ void main() {
   runApp(EvgoApp(api: EvgoApi.fromEnvironment()));
 }
 
-class EvgoApp extends StatelessWidget {
+class EvgoApp extends StatefulWidget {
   const EvgoApp({super.key, required this.api});
 
   final EvgoApi api;
 
   @override
+  State<EvgoApp> createState() => _EvgoAppState();
+}
+
+class _EvgoAppState extends State<EvgoApp> {
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'EVGO',
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF0B8457),
-        useMaterial3: true,
-      ),
-      home: AppShell(api: api),
+      theme: ThemeData(colorSchemeSeed: const Color(0xFF0B8457), useMaterial3: true),
+      home: widget.api.token == null
+          ? LoginScreen(api: widget.api, onLoggedIn: () => setState(() {}))
+          : AppShell(api: widget.api),
     );
   }
 }
@@ -44,10 +49,10 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const HomeScreen(),
+      HomeScreen(api: widget.api, key: ValueKey('home-$_index')),
       TravelScreen(api: widget.api),
       ChargeScreen(api: widget.api),
-      const WalletScreen(),
+      WalletScreen(api: widget.api, key: ValueKey('wallet-$_index')),
     ];
     return Scaffold(
       body: SafeArea(child: pages[_index]),

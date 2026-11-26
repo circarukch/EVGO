@@ -61,7 +61,7 @@ class _ChargeScreenState extends State<ChargeScreen> {
                         '\n${c.operator} · ${c.availableCount} available',
                       ),
                       isThreeLine: true,
-                      trailing: Text('₹${c.pricePerKwhInr.toStringAsFixed(0)}/kWh'),
+                      trailing: c.pricePerKwhInr == null ? null : Text('₹${c.pricePerKwhInr!.toStringAsFixed(0)}/kWh'),
                     ),
                 ],
               );

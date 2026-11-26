@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: EVGO API
-  version: 0.1.0
+  version: 0.2.0
   description: >
     Single API for the EVGO customer apps (Flutter mobile, Next.js web) and the
     operator console. Typed clients for Dart and TypeScript are generated from
@@ -57,8 +57,160 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Charger" }
         "404": { description: Not found }
+  /auth/otp/request:
+    post:
+      summary: Send a login code by SMS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [phone], properties: { phone: { type: string, example: "9876543210" } } }
+      responses:
+        "200":
+          description: Code sent. devCode is present only on development servers.
+          content:
+            application/json:
+              schema: { type: object, properties: { phone: { type: string }, expiresInSec: { type: integer }, devCode: { type: string } } }
+        "400": { description: Not a valid Indian mobile number }
+        "429": { description: Asked again too soon, or more than 5 codes in an hour }
+  /auth/otp/verify:
+    post:
+      summary: Exchange a login code for an access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [phone, code], properties: { phone: { type: string }, code: { type: string } } }
+      responses:
+        "200":
+          description: Logged in. Creates the user and wallet on first login.
+          content:
+            application/json:
+              schema: { type: object, properties: { accessToken: { type: string }, user: { $ref: "#/components/schemas/User" } } }
+        "401": { description: Wrong, expired or used code, or too many attempts }
+  /me:
+    get:
+      summary: The logged-in user
+      security: [{ bearer: [] }]
+      responses:
+        "200": { description: User, content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+  /wallet:
+    get:
+      summary: Wallet balance and latest 50 movements
+      security: [{ bearer: [] }]
+      responses:
+        "200":
+          description: Wallet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  balancePaise: { type: integer }
+                  history:
+                    type: array
+                    items: { type: object, properties: { id: { type: string }, amountPaise: { type: integer, description: "Positive in, negative out" }, memo: { type: string }, at: { type: string, format: date-time } } }
+  /wallet/topups:
+    post:
+      summary: Start adding money (₹1 to ₹1,00,000)
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [amountPaise], properties: { amountPaise: { type: integer } } }
+      responses:
+        "201":
+          description: Pending top-up. gateway is "mock" on development servers.
+          content:
+            application/json:
+              schema: { type: object, properties: { topUpId: { type: string }, amountPaise: { type: integer }, status: { type: string }, gateway: { type: string } } }
+        "400": { description: Amount out of range }
+  /wallet/topups/{id}/mock-confirm:
+    post:
+      summary: Development only. Stands in for the payment gateway's success webhook.
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "201": { description: Credited (idempotent) }
+  /trips/{id}/seats:
+    get:
+      summary: Seat map with live availability
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: Seats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tripId: { type: string }
+                  departsAt: { type: string, format: date-time }
+                  seats:
+                    type: array
+                    items: { type: object, properties: { seatLabel: { type: string }, farePaise: { type: integer }, status: { type: string, enum: [available, held, booked, blocked] } } }
+  /bookings:
+    post:
+      summary: Hold up to 6 seats for 10 minutes
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tripId, seats]
+              properties:
+                tripId: { type: string }
+                seats: { type: array, items: { type: object, required: [seatLabel, passengerName], properties: { seatLabel: { type: string }, passengerName: { type: string } } } }
+      responses:
+        "201":
+          description: Seats held
+          content:
+            application/json:
+              schema: { type: object, properties: { orderId: { type: string }, status: { type: string }, totalPaise: { type: integer }, expiresAt: { type: string, format: date-time }, seats: { type: array, items: { type: string } } } }
+        "409": { description: A seat is already held or booked }
+    get:
+      summary: My bus bookings
+      security: [{ bearer: [] }]
+      responses:
+        "200": { description: Bookings with tickets }
+  /bookings/{id}/pay:
+    post:
+      summary: Pay for held seats from the wallet and issue tickets
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "201": { description: Paid. Returns tickets and new balance. }
+        "402": { description: "Wallet short. Body has balancePaise and shortfallPaise." }
+        "409": { description: Already paid or cancelled }
+        "410": { description: Hold expired }
+  /bookings/{id}/hold:
+    delete:
+      summary: Release unpaid held seats
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: Released }
+  /bookings/{id}/cancel:
+    post:
+      summary: "Cancel a paid booking. Refund to wallet: 90% at 24h or more before departure, 50% at 6 to 24h, closed under 6h."
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "201": { description: "Cancelled. Body has refundPaise, cancellationFeePaise, balancePaise." }
+        "400": { description: Too close to departure }
 components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
   schemas:
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        phone: { type: string }
+        name: { type: [string, "null"] }
     Segment:
       type: string
       enum: ["2W", "3W", "4W", "BUS", "TRUCK"]
@@ -79,7 +231,9 @@ components:
         operator: { type: string }
         from: { type: string }
         to: { type: string }
-        departs: { type: string, example: "06:00" }
+        departsAt: { type: string, format: date-time }
+        arrivesAt: { type: string, format: date-time }
+        departs: { type: string, example: "06:00", description: Local time (IST) }
         arrives: { type: string, example: "11:30" }
         busType: { type: string }
         seatsLeft: { type: integer }
@@ -92,7 +246,7 @@ components:
       required: [id, type, powerKw, status]
       properties:
         id: { type: integer }
-        type: { type: string, enum: [CCS2, Type2, GBT, LEV_AC, LECCS] }
+        type: { type: string, enum: [CCS2, Type2, GBT, BharatDC001, LEV_AC, LECCS] }
         powerKw: { type: number }
         status: { type: string }
     Charger:
@@ -104,5 +258,5 @@ components:
         connectors: { type: array, items: { $ref: "#/components/schemas/Connector" } }
         segments: { type: array, items: { $ref: "#/components/schemas/Segment" } }
         access: { type: string, enum: [public, fleet_only] }
-        pricePerKwhInr: { type: number }
+        pricePerKwhInr: { type: [number, "null"] }
         place: { $ref: "#/components/schemas/Place" }
