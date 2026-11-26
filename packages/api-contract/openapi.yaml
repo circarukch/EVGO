@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: EVGO API
-  version: 0.2.0
+  version: 0.3.0
   description: >
     Single API for the EVGO customer apps (Flutter mobile, Next.js web) and the
     operator console. Typed clients for Dart and TypeScript are generated from
@@ -94,6 +94,43 @@ paths:
       security: [{ bearer: [] }]
       responses:
         "200": { description: User, content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+  /charging/sessions:
+    post:
+      summary: Start charging on a connector (the charger QR carries chargePointId and connectorId)
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [chargePointId, connectorId], properties: { chargePointId: { type: string, example: GNT-HUB-01 }, connectorId: { type: integer, example: 1 } } }
+      responses:
+        "201": { description: Session started, content: { application/json: { schema: { $ref: "#/components/schemas/ChargingSession" } } } }
+        "402": { description: "Wallet below ₹100. Body has balancePaise and shortfallPaise." }
+        "403": { description: Fleet-only charger }
+        "404": { description: Unknown charger or connector }
+        "409": { description: Connector busy or out of service, or a session already running }
+        "503": { description: Charger did not respond, or app charging not switched on }
+  /charging/sessions/active:
+    get:
+      summary: The caller's running session, if any
+      security: [{ bearer: [] }]
+      responses:
+        "200": { description: "{ session: ChargingSession | null }" }
+  /charging/sessions/{id}:
+    get:
+      summary: Live session (energy, cost, power). Stops itself once it has used the wallet balance it started with.
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: Session, content: { application/json: { schema: { $ref: "#/components/schemas/ChargingSession" } } } }
+  /charging/sessions/{id}/stop:
+    post:
+      summary: Stop and pay energy × tariff from the wallet
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "201": { description: Stopped and billed. Includes balancePaise. }
+        "409": { description: Already stopped }
   /wallet:
     get:
       summary: Wallet balance and latest 50 movements
@@ -241,6 +278,23 @@ components:
         chargersAtBoarding:
           type: integer
           description: Public chargers at the boarding point (powers the park, charge, ride journey)
+    ChargingSession:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [ACTIVE, STOPPED] }
+        chargePointId: { type: string }
+        connectorId: { type: integer }
+        connectorType: { type: string }
+        placeName: { type: string }
+        perKwhInr: { type: number }
+        startedAt: { type: string, format: date-time }
+        stoppedAt: { type: [string, "null"], format: date-time }
+        stopReason: { type: [string, "null"], example: WalletLimit }
+        energyKwh: { type: number }
+        powerKw: { type: number }
+        costPaise: { type: integer }
+        balancePaise: { type: integer, description: Only on the stop response }
     Connector:
       type: object
       required: [id, type, powerKw, status]

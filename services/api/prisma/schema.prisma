@@ -372,22 +372,37 @@ model Tariff {
   connectors         Connector[]
 }
 
+enum ChargingStatus {
+  ACTIVE
+  STOPPED
+}
+
 model ChargingSession {
-  id                String     @id @default(uuid())
+  id                String         @id @default(uuid())
   chargerId         String
   connectorOcppId   Int
   ocppTransactionId Int
   idTag             String
-  orderItemId       String?    @unique
+  /// Set for sessions started from the app; RFID sessions may have none.
+  userId            String?
+  status            ChargingStatus @default(ACTIVE)
+  /// Tariff at start, so a price change mid-session does not change the bill.
+  perKwhPaise       Int            @default(0)
+  /// The wallet balance at start: the session stops itself before it costs more.
+  maxCostPaise      Int?
+  orderItemId       String?        @unique
   meterStartWh      Int
   meterStopWh       Int?
+  energyWh          Int?
+  costPaise         Int?
   startedAt         DateTime
   stoppedAt         DateTime?
   stopReason        String?
-  charger           Charger    @relation(fields: [chargerId], references: [id])
-  orderItem         OrderItem? @relation(fields: [orderItemId], references: [id])
+  charger           Charger        @relation(fields: [chargerId], references: [id])
+  orderItem         OrderItem?     @relation(fields: [orderItemId], references: [id])
 
   @@unique([chargerId, ocppTransactionId])
+  @@index([userId, status])
 }
 
 // Meter values go to a TimescaleDB hypertable (see infra/db/init.sql), not Prisma.
