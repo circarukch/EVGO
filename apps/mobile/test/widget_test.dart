@@ -123,6 +123,32 @@ void main() {
     expect(find.text('Added money to wallet by card'), findsOneWidget);
   });
 
+  testWidgets('adds a typed amount, with limits checked before paying', (tester) async {
+    await logIn(tester);
+    await tester.tap(find.text('Wallet'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('topup-custom')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('topup-amount-continue')));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter an amount'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('topup-amount')), '5');
+    await tester.tap(find.byKey(const Key('topup-amount-continue')));
+    await tester.pumpAndSettle();
+    expect(find.text('Minimum is ₹10'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('topup-amount')), '200000');
+    await tester.tap(find.byKey(const Key('topup-amount-continue')));
+    await tester.pumpAndSettle();
+    expect(find.text('Maximum is ₹1,00,000 at a time'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('topup-amount')), '750');
+    await tester.tap(find.byKey(const Key('topup-amount-continue')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('checkout-upi')));
+    await tester.pumpAndSettle();
+    expect(find.text('₹750'), findsWidgets);
+    expect(find.text('Added money to wallet by UPI'), findsOneWidget);
+  });
+
   testWidgets('books a seat by UPI with no wallet, and refunds back to UPI on cancel', (tester) async {
     await logIn(tester);
     await tester.tap(find.text('Travel'));
