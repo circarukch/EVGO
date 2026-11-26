@@ -85,3 +85,4 @@ summary { cursor: pointer; color: var(--blue); font-weight: 500; }
   body { background: #fff; }
   .content { padding: 0; max-width: none; }
 }
+.form textarea { padding: 8px; font-size: 15px; border: 1px solid var(--line); border-radius: 6px; font-family: inherit; }

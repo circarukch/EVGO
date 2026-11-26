@@ -222,4 +222,43 @@ class EvgoApi {
     final r = await _post('/wallet/topups/$topUpId/mock-confirm', {'method': method}) as Map<String, dynamic>;
     return r['status'] as String;
   }
+
+  // ---- Need a charger? shop ----
+
+  /// Chargers for sale. [current] is AC or DC; kW bounds are inclusive.
+  Future<List<ChargerProduct>> shopChargers({String? current, double? minKw, double? maxKw}) async {
+    final list = await _get('/shop/chargers', {
+      if (current != null) 'current': current,
+      if (minKw != null) 'minKw': '$minKw',
+      if (maxKw != null) 'maxKw': '$maxKw',
+    }) as List;
+    return [for (final j in list) ChargerProduct.fromJson(j as Map<String, dynamic>)];
+  }
+
+  Future<ChargerProduct> shopCharger(String id) async => ChargerProduct.fromJson(await _get('/shop/chargers/$id') as Map<String, dynamic>);
+
+  /// Sends a quote request. The sales team calls back on [phone].
+  Future<ChargerLead> requestChargerQuote({
+    String? productId,
+    required String name,
+    required String phone,
+    required String city,
+    required String siteType,
+    int quantity = 1,
+    String? notes,
+  }) async =>
+      ChargerLead.fromJson(await _post('/shop/leads', {
+        if (productId != null) 'productId': productId,
+        'name': name,
+        'phone': phone,
+        'city': city,
+        'siteType': siteType,
+        'quantity': quantity,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      }) as Map<String, dynamic>);
+
+  Future<List<ChargerLead>> myChargerQuotes() async {
+    final list = await _get('/shop/leads/mine') as List;
+    return [for (final j in list) ChargerLead.fromJson(j as Map<String, dynamic>)];
+  }
 }

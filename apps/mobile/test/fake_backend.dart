@@ -14,6 +14,31 @@ class FakeBackend {
   bool topUpPaid = false;
   final history = <Map<String, dynamic>>[];
   bool loggedIn = false;
+  final quotes = <Map<String, dynamic>>[];
+
+  static Map<String, dynamic> _charger(String id, String name, String current, num kw, List<String> connectors, int? price) => {
+        'id': id,
+        'name': name,
+        'brand': 'EVGO (sample)',
+        'current': current,
+        'powerKw': kw,
+        'connectors': connectors,
+        'priceInr': price,
+        'warrantyYears': 3,
+        'installationIncluded': current == 'AC',
+        'suitedFor': current == 'AC' ? ['Home', '4W'] : ['Highway'],
+        'summary': 'Summary of $name',
+        'specs': {'Input': current == 'AC' ? '230 V single phase' : '415 V three phase'},
+        'isSample': true,
+        'active': true,
+      };
+
+  static final shopCatalogue = [
+    _charger('smp-ac-7', 'EVGO Home 7.4', 'AC', 7.4, ['Type 2'], 32000),
+    _charger('smp-ac-22', 'EVGO Work 22 Twin', 'AC', 22, ['Type 2', 'Type 2'], 95000),
+    _charger('smp-dc-60', 'EVGO Fast 60', 'DC', 60, ['CCS2'], null),
+    _charger('smp-dc-240', 'EVGO Depot 240', 'DC', 240, ['CCS2', 'CCS2'], null),
+  ];
 
   /// The second test customer.
   static const otherPhone = '9123456780';
@@ -58,6 +83,27 @@ class FakeBackend {
     }
     if (req.headers['authorization'] != 'Bearer tok' && !path.startsWith('/trips') && !path.startsWith('/chargers')) {
       return json({'message': 'Log in first'}, 401);
+    }
+    if (path == '/shop/chargers') {
+      final q = req.url.queryParameters;
+      return json(shopCatalogue
+          .where((c) => q['current'] == null || c['current'] == q['current'])
+          .where((c) => q['minKw'] == null || (c['powerKw'] as num) >= double.parse(q['minKw']!))
+          .where((c) => q['maxKw'] == null || (c['powerKw'] as num) <= double.parse(q['maxKw']!))
+          .toList());
+    }
+    if (path == '/shop/leads/mine') return json(quotes.reversed.toList());
+    if (path == '/shop/leads' && req.method == 'POST') {
+      final product = shopCatalogue.where((c) => c['id'] == body['productId']).firstOrNull;
+      final lead = {
+        ...body,
+        'id': 'L${quotes.length + 1}',
+        'productName': product?['name'],
+        'status': 'NEW',
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
+      };
+      quotes.add(lead);
+      return json(lead, 201);
     }
     if (path == '/trips') {
       return json([

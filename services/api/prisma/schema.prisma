@@ -15,17 +15,18 @@ datasource db {
 // ---------- Identity ----------
 
 model User {
-  id         String         @id @default(uuid())
-  phone      String         @unique
-  name       String?
-  email      String?
-  kycLevel   Int            @default(0)
-  createdAt  DateTime       @default(now())
-  vehicles   Vehicle[]
-  passengers Passenger[]
-  orders     Order[]
-  wallet     WalletAccount?
-  rfidTokens RfidToken[]
+  id           String         @id @default(uuid())
+  phone        String         @unique
+  name         String?
+  email        String?
+  kycLevel     Int            @default(0)
+  createdAt    DateTime       @default(now())
+  vehicles     Vehicle[]
+  passengers   Passenger[]
+  orders       Order[]
+  wallet       WalletAccount?
+  rfidTokens   RfidToken[]
+  chargerLeads ChargerLead[]
 }
 
 enum VehicleSegment {
@@ -518,4 +519,56 @@ model CancellationPolicy {
   tiers     Json // [{ "minHoursBefore": 24, "refundPercent": 90 }, ...]
   updatedAt DateTime     @updatedAt
   org       Organisation @relation(fields: [orgId], references: [id])
+}
+
+// ---------- Charger shop ----------
+
+/// An EV charger EVGO sells (home/workplace AC, or DC fast). Shown in the app's "Need a charger?".
+model ChargerProduct {
+  id                   String        @id @default(uuid())
+  name                 String
+  brand                String
+  current              String // AC or DC
+  powerKw              Decimal       @db.Decimal(6, 1)
+  /// e.g. ["Type 2"], ["CCS2", "CCS2"]
+  connectors           String[]
+  /// Indicative price incl. GST; null = price on quote (most DC units).
+  priceInr             Int?
+  warrantyYears        Int           @default(1)
+  installationIncluded Boolean       @default(false)
+  /// Best for: home, apartment, office, fleet depot, highway site…
+  suitedFor            String[]
+  summary              String
+  /// Extra specs shown as a table: { "Input": "230 V single phase", ... }
+  specs                Json?
+  active               Boolean       @default(true)
+  /// Placeholder catalogue entry until real products and prices are loaded.
+  isSample             Boolean       @default(false)
+  sortOrder            Int           @default(0)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  leads                ChargerLead[]
+}
+
+/// A customer asking for a quote (site check, installation, price).
+model ChargerLead {
+  id        String          @id @default(uuid())
+  productId String?
+  userId    String?
+  name      String
+  phone     String
+  city      String
+  /// home, apartment, office, shop, fleet_depot, highway, other
+  siteType  String
+  quantity  Int             @default(1)
+  notes     String?
+  /// NEW, CONTACTED, QUOTED, WON, LOST
+  status    String          @default("NEW")
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  product   ChargerProduct? @relation(fields: [productId], references: [id])
+  user      User?           @relation(fields: [userId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([userId])
 }

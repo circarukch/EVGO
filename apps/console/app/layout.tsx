@@ -22,6 +22,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <li>Manifests</li>
             <li><a href="/settings/cancellation">Cancellation and refunds</a></li>
             <li>Settlements</li>
+            <li><a href="/shop">Charger shop</a></li>
+            <li><a href="/shop/leads">Shop enquiries</a></li>
           </ul>
         </nav>
         <div className="content">{children}</div>

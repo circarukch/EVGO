@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: EVGO API
-  version: 0.5.0
+  version: 0.6.0
   description: >
     Single API for the EVGO customer apps (Flutter mobile, Next.js web) and the
     operator console. Typed clients for Dart and TypeScript are generated from
@@ -346,10 +346,89 @@ paths:
       responses:
         "200": { description: Received }
         "401": { description: Bad signature }
+  /shop/chargers:
+    get:
+      summary: Need a charger? catalogue of AC and DC chargers for sale (active products only)
+      parameters:
+        - { name: current, in: query, schema: { type: string, enum: [AC, DC] } }
+        - { name: minKw, in: query, schema: { type: number } }
+        - { name: maxKw, in: query, schema: { type: number } }
+      responses:
+        "200":
+          description: Smallest first, AC before DC
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ChargerProduct" } } } }
+        "400": { description: Bad filter }
+  /shop/chargers/{id}:
+    get:
+      summary: One charger with specs
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: Product, content: { application/json: { schema: { $ref: "#/components/schemas/ChargerProduct" } } } }
+        "404": { description: Not found or hidden }
+  /shop/leads:
+    post:
+      summary: Ask for a quote (enquiry only, no payment). The sales team calls back.
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, phone, city, siteType]
+              properties:
+                productId: { type: [string, "null"], description: "Null = help me choose" }
+                name: { type: string }
+                phone: { type: string, description: 10-digit Indian mobile, +91 optional }
+                city: { type: string }
+                siteType: { type: string, enum: [Home, Apartment, Office, Shop, Highway, Fleet depot, Bus depot, Other] }
+                quantity: { type: integer, minimum: 1, maximum: 500, default: 1 }
+                notes: { type: [string, "null"] }
+      responses:
+        "201": { description: Enquiry saved, content: { application/json: { schema: { $ref: "#/components/schemas/ChargerLead" } } } }
+        "400": { description: Missing or invalid field }
+        "404": { description: Product not found }
+  /shop/leads/mine:
+    get:
+      summary: The customer's own quote requests, newest first
+      security: [{ bearer: [] }]
+      responses:
+        "200": { description: Enquiries, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ChargerLead" } } } } }
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
   schemas:
+    ChargerProduct:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        brand: { type: string }
+        current: { type: string, enum: [AC, DC] }
+        powerKw: { type: number }
+        connectors: { type: array, items: { type: string } }
+        priceInr: { type: [integer, "null"], description: "Whole rupees incl. GST; null = price on quote" }
+        warrantyYears: { type: integer }
+        installationIncluded: { type: boolean }
+        suitedFor: { type: array, items: { type: string } }
+        summary: { type: string }
+        specs: { type: object, additionalProperties: { type: string } }
+        isSample: { type: boolean, description: Placeholder listing until real products are added }
+        active: { type: boolean }
+    ChargerLead:
+      type: object
+      properties:
+        id: { type: string }
+        productId: { type: [string, "null"] }
+        productName: { type: [string, "null"] }
+        name: { type: string }
+        phone: { type: string }
+        city: { type: string }
+        siteType: { type: string }
+        quantity: { type: integer }
+        notes: { type: [string, "null"] }
+        status: { type: string, enum: [NEW, CONTACTED, QUOTED, WON, LOST] }
+        createdAt: { type: string, format: date-time }
     User:
       type: object
       properties:

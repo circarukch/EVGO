@@ -6,9 +6,10 @@ import '../api/evgo_api.dart';
 import '../api/models.dart';
 import '../brand.dart';
 import 'charging_session_screen.dart';
+import 'shop_screen.dart';
 import 'trip_details_screen.dart';
 
-/// Landing page after login: two big choices (a bus ticket or a charge),
+/// Landing page after login: three big choices (a bus ticket, a charge, or buying a charger),
 /// then the user's trips: a running charge (live), upcoming bus tickets, recent charging.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -115,6 +116,16 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: Icons.bolt,
           colors: const [Brand.green, Brand.lime],
           onTap: widget.onCharge,
+        ),
+        const SizedBox(height: 12),
+        _ChoiceCard(
+          key: const Key('choice-shop'),
+          title: 'Need a charger?',
+          subtitle: 'Buy an AC or DC charger for your home, building, business or fleet. Installation available.',
+          action: 'Shop chargers',
+          icon: Icons.ev_station,
+          colors: const [Brand.ink, Brand.blue],
+          onTap: () => Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => ShopScreen(api: widget.api))),
         ),
         const SizedBox(height: 20),
         Text('Your trips', style: text.titleMedium),
