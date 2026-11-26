@@ -13,7 +13,6 @@ class HomeScreen extends StatefulWidget {
     required this.onBookTicket,
     required this.onCharge,
     required this.onWallet,
-    this.now,
   });
 
   final EvgoApi api;
@@ -22,9 +21,6 @@ class HomeScreen extends StatefulWidget {
   /// Opens the Charge tab, optionally pre-filtered to a vehicle type.
   final void Function(String? segment) onCharge;
   final VoidCallback onWallet;
-
-  /// Injectable clock for the greeting (tests).
-  final DateTime Function()? now;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -41,13 +37,6 @@ class _HomeScreenState extends State<HomeScreen> {
     ('BUS', Icons.directions_bus, 'Bus'),
     ('TRUCK', Icons.local_shipping, 'Truck'),
   ];
-
-  String get _greeting {
-    final h = (widget.now ?? DateTime.now)().hour;
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    return 'Good evening';
-  }
 
   Future<void> _cancel(BookingSummary b) async {
     try {
@@ -72,13 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Row(
           children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_greeting, style: text.titleMedium?.copyWith(color: Brand.teal)),
-                  Text('What would you like to do?', style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w700, color: Brand.ink)),
-                ],
-              ),
+              child: Text('What would you like to do?', style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w700, color: Brand.ink)),
             ),
             _WalletChip(wallet: _wallet, onTap: widget.onWallet),
           ],
