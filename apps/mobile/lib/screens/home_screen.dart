@@ -5,7 +5,7 @@ import '../api/models.dart';
 import '../brand.dart';
 
 /// Landing page after login: two big choices (a bus ticket or a charge),
-/// quick shortcuts for each, then the user's upcoming trips.
+/// then the user's upcoming trips.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
@@ -18,8 +18,7 @@ class HomeScreen extends StatefulWidget {
   final EvgoApi api;
   final VoidCallback onBookTicket;
 
-  /// Opens the Charge tab, optionally pre-filtered to a vehicle type.
-  final void Function(String? segment) onCharge;
+  final VoidCallback onCharge;
   final VoidCallback onWallet;
 
   @override
@@ -29,14 +28,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<BookingSummary>> _bookings = widget.api.myBookings();
   late final Future<WalletSummary> _wallet = widget.api.wallet();
-
-  static const vehicles = [
-    ('2W', Icons.two_wheeler, 'Scooter'),
-    ('3W', Icons.electric_rickshaw, 'Auto'),
-    ('4W', Icons.directions_car, 'Car'),
-    ('BUS', Icons.directions_bus, 'Bus'),
-    ('TRUCK', Icons.local_shipping, 'Truck'),
-  ];
 
   Future<void> _cancel(BookingSummary b) async {
     try {
@@ -84,37 +75,9 @@ class _HomeScreenState extends State<HomeScreen> {
           action: 'Find a charger',
           icon: Icons.bolt,
           colors: const [Brand.green, Brand.lime],
-          onTap: () => widget.onCharge(null),
+          onTap: widget.onCharge,
         ),
         const SizedBox(height: 20),
-        Text('Popular route', style: text.titleMedium),
-        const SizedBox(height: 8),
-        Card(
-          child: ListTile(
-            leading: const CircleAvatar(backgroundColor: Brand.blue, foregroundColor: Colors.white, child: Icon(Icons.route)),
-            title: const Text('Guntur ⇄ Hyderabad'),
-            subtitle: const Text('Electric AC buses · from ₹549 · chargers at boarding'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: widget.onBookTicket,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text('Charge by vehicle', style: text.titleMedium),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 84,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              for (final (segment, icon, label) in vehicles)
-                Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: _VehicleTile(icon: icon, label: label, onTap: () => widget.onCharge(segment)),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
         Text('Your trips', style: text.titleMedium),
         const SizedBox(height: 8),
         FutureBuilder<List<BookingSummary>>(
@@ -223,38 +186,6 @@ class _ChoiceCard extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _VehicleTile extends StatelessWidget {
-  const _VehicleTile({required this.icon, required this.label, required this.onTap});
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: 76,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Brand.green.withValues(alpha: 0.35)),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Brand.green, size: 28),
-            const SizedBox(height: 6),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w600, color: Brand.ink)),
-          ],
         ),
       ),
     );

@@ -55,16 +55,8 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
-  String? _chargeSegment;
-  int _chargeVisit = 0;
 
   void _go(int i) => setState(() => _index = i);
-
-  void _openCharge(String? segment) => setState(() {
-        _chargeSegment = segment;
-        _chargeVisit++;
-        _index = 2;
-      });
 
   @override
   Widget build(BuildContext context) {
@@ -73,11 +65,11 @@ class _AppShellState extends State<AppShell> {
         api: widget.api,
         key: ValueKey('home-$_index'),
         onBookTicket: () => _go(1),
-        onCharge: _openCharge,
+        onCharge: () => _go(2),
         onWallet: () => _go(3),
       ),
       TravelScreen(api: widget.api),
-      ChargeScreen(api: widget.api, initialSegment: _chargeSegment, key: ValueKey('charge-$_chargeVisit')),
+      ChargeScreen(api: widget.api),
       WalletScreen(api: widget.api, key: ValueKey('wallet-$_index')),
     ];
     return Scaffold(

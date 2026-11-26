@@ -113,16 +113,6 @@ void main() {
     expect(find.text('Guntur EVGO Hub'), findsOneWidget);
   });
 
-  testWidgets('a vehicle shortcut opens chargers filtered to that type', (tester) async {
-    await logIn(tester);
-    await scrollTo(tester, 'Truck');
-    await tester.tap(find.text('Truck'));
-    await tester.pumpAndSettle();
-    final chip = tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'TRUCK'));
-    expect(chip.selected, isTrue);
-    expect(backend.lastChargerSegment, 'TRUCK');
-  });
-
   testWidgets('logs out from the account menu and the same user logs in again', (tester) async {
     await logIn(tester);
     await tester.tap(find.byTooltip('Account'));
