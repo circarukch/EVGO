@@ -331,18 +331,23 @@ model Site {
 }
 
 model Charger {
-  id            String            @id @default(uuid())
-  siteId        String
-  chargePointId String            @unique // OCPP identity in the WebSocket URL
-  vendor        String?
-  model         String?
-  firmware      String?
-  ocppVersion   String            @default("1.6J")
-  lastSeenAt    DateTime?
-  site          Site              @relation(fields: [siteId], references: [id])
-  connectors    Connector[]
-  sessions      ChargingSession[]
-  alarms        Alarm[]
+  id               String            @id @default(uuid())
+  siteId           String
+  chargePointId    String            @unique // OCPP identity in the WebSocket URL
+  vendor           String?
+  model            String?
+  firmware         String?
+  ocppVersion      String            @default("1.6J")
+  /// scrypt hash of the Basic auth password the charger uses to connect (OCPP security profile 1/2).
+  ocppPasswordHash String?
+  /// True while the charger holds a WebSocket to the OCPP gateway.
+  online           Boolean           @default(false)
+  connectedAt      DateTime?
+  lastSeenAt       DateTime?
+  site             Site              @relation(fields: [siteId], references: [id])
+  connectors       Connector[]
+  sessions         ChargingSession[]
+  alarms           Alarm[]
 }
 
 model Connector {

@@ -11,6 +11,9 @@ import {
 
 /** Events the gateway hands to the core backend (via the event queue in production). */
 export type ChargerEvent =
+  | { type: "charger.connected"; chargePointId: string }
+  | { type: "charger.disconnected"; chargePointId: string }
+  | { type: "charger.heartbeat"; chargePointId: string }
   | { type: "charger.booted"; chargePointId: string; vendor: string; model: string; firmware?: string }
   | { type: "connector.status"; chargePointId: string; connectorId: number; status: string; errorCode: string }
   | { type: "session.started"; chargePointId: string; connectorId: number; transactionId: number; idTag: string; meterStartWh: number; at: string }
@@ -47,6 +50,12 @@ export class ChargePointHandler {
 
   constructor(private readonly deps: HandlerDeps) {}
 
+  /** The transaction running on a plug, as this gateway saw it start. */
+  openTransaction(chargePointId: string, connectorId: number): number | null {
+    for (const [id, tx] of this.openTx) if (tx.chargePointId === chargePointId && tx.connectorId === connectorId) return id;
+    return null;
+  }
+
   private now(): string {
     return (this.deps.now ? this.deps.now() : new Date()).toISOString();
   }
@@ -56,6 +65,7 @@ export class ChargePointHandler {
       case "BootNotification":
         return this.boot(chargePointId, payload as unknown as BootNotificationReq);
       case "Heartbeat":
+        await this.deps.events.publish({ type: "charger.heartbeat", chargePointId });
         return { currentTime: this.now() };
       case "StatusNotification":
         return this.status(chargePointId, payload as unknown as StatusNotificationReq);

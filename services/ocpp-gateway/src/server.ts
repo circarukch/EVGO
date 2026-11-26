@@ -1,15 +1,19 @@
-import { randomUUID } from "node:crypto";
-import { IncomingMessage, createServer, Server } from "node:http";
+import { randomUUID, timingSafeEqual } from "node:crypto";
+import { IncomingMessage, createServer, Server, ServerResponse } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
-import { ChargePointHandler, HandlerDeps } from "./handlers.js";
+import { ChargePointHandler, ChargerEvent, HandlerDeps } from "./handlers.js";
 import { CALL, CALL_ERROR, CALL_RESULT, OcppError, parseFrame } from "./ocpp.js";
 
 const SUBPROTOCOL = "ocpp1.6";
+/** Commands the core API may send through POST /commands. */
+const COMMANDS = new Set(["RemoteStartTransaction", "RemoteStopTransaction", "Reset", "UnlockConnector", "TriggerMessage", "ChangeAvailability"]);
 
 export interface GatewayOptions extends HandlerDeps {
   /** Return true if this charger may connect. Security Profile 2 checks the Basic auth password here. */
   checkAuth?: (chargePointId: string, req: IncomingMessage) => boolean | Promise<boolean>;
   callTimeoutMs?: number;
+  /** Key the core API sends to POST /commands. Without it the command endpoint is off. */
+  controlKey?: string;
 }
 
 interface Pending {
@@ -28,10 +32,7 @@ export class OcppGateway {
 
   constructor(private readonly opts: GatewayOptions) {
     this.handler = new ChargePointHandler(opts);
-    this.http = createServer((_req, res) => {
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ ok: true, connected: this.connectedChargers() }));
-    });
+    this.http = createServer((req, res) => void this.onHttp(req, res));
     this.wss = new WebSocketServer({
       noServer: true,
       handleProtocols: (protocols) => (protocols.has(SUBPROTOCOL) ? SUBPROTOCOL : false),
@@ -84,13 +85,57 @@ export class OcppGateway {
     });
   }
 
+  /** GET: health. POST /commands: the core API sends a command to a charger and gets its answer. */
+  private async onHttp(req: IncomingMessage, res: ServerResponse) {
+    const reply = (code: number, body: unknown) => {
+      res.writeHead(code, { "content-type": "application/json" });
+      res.end(JSON.stringify(body));
+    };
+    if (req.method !== "POST" || (req.url ?? "").split("?")[0] !== "/commands") {
+      return reply(200, { ok: true, connected: this.connectedChargers() });
+    }
+    if (!this.opts.controlKey || !sameKey(String(req.headers["x-gateway-key"] ?? ""), this.opts.controlKey)) {
+      return reply(401, { message: "Gateway key required" });
+    }
+    let body: { chargePointId?: string; action?: string; payload?: Record<string, unknown> };
+    try {
+      body = JSON.parse(await readBody(req));
+    } catch {
+      return reply(400, { message: "Body must be JSON" });
+    }
+    if (!body.chargePointId || !body.action || !COMMANDS.has(body.action)) return reply(400, { message: "chargePointId and a known action are required" });
+    let payload = body.payload ?? {};
+    // The API may ask to stop "whatever runs on plug N": fill in the transaction this gateway saw start.
+    if (body.action === "RemoteStopTransaction" && payload.transactionId === undefined && typeof payload.connectorId === "number") {
+      const transactionId = this.handler.openTransaction(body.chargePointId, payload.connectorId);
+      if (transactionId === null) return reply(409, { message: `Nothing is charging on plug ${payload.connectorId}` });
+      payload = { transactionId };
+    }
+    try {
+      reply(200, await this.sendCall(body.chargePointId, body.action, payload));
+    } catch (err) {
+      reply(502, { message: (err as Error).message });
+    }
+  }
+
   private onConnect(id: string, ws: WebSocket) {
     this.sockets.get(id)?.terminate(); // a reconnecting charger replaces its old socket
     this.sockets.set(id, ws);
+    void this.publish({ type: "charger.connected", chargePointId: id });
     ws.on("close", () => {
-      if (this.sockets.get(id) === ws) this.sockets.delete(id);
+      if (this.sockets.get(id) !== ws) return; // replaced by a newer connection: still online
+      this.sockets.delete(id);
+      void this.publish({ type: "charger.disconnected", chargePointId: id });
     });
     ws.on("message", (data) => void this.onMessage(id, ws, data.toString()));
+  }
+
+  private async publish(e: ChargerEvent) {
+    try {
+      await this.opts.events.publish(e);
+    } catch (err) {
+      console.error(`event ${e.type} for ${e.chargePointId} not delivered:`, (err as Error).message);
+    }
   }
 
   private async onMessage(id: string, ws: WebSocket, raw: string) {
@@ -125,4 +170,26 @@ export class OcppGateway {
 export function chargePointIdFrom(url: string | undefined): string | null {
   const match = /^\/ocpp\/([A-Za-z0-9._-]{1,48})\/?$/.exec((url ?? "").split("?")[0]);
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+function sameKey(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+function readBody(req: IncomingMessage, limit = 64 * 1024): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => {
+      size += c.length;
+      if (size > limit) {
+        reject(new Error("too large"));
+        req.destroy();
+      } else chunks.push(c);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
 }
