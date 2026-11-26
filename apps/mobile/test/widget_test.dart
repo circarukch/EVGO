@@ -73,6 +73,9 @@ void main() {
     expect(find.text('Not enough money in wallet'), findsOneWidget);
     await tester.tap(find.text('Add ₹549 to wallet and pay'));
     await tester.pumpAndSettle();
+    expect(find.textContaining('Cashfree checkout · test mode'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('checkout-upi')));
+    await tester.pumpAndSettle();
     expect(find.text('Ticket TKS1'), findsOneWidget);
 
     await tester.tap(find.text('Done'));
@@ -114,8 +117,43 @@ void main() {
     expect(find.text('₹0'), findsOneWidget);
     await tester.tap(find.text('+ ₹500'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('checkout-card')));
+    await tester.pumpAndSettle();
     expect(find.text('₹500'), findsOneWidget);
-    expect(find.text('Added money to wallet'), findsOneWidget);
+    expect(find.text('Added money to wallet by card'), findsOneWidget);
+  });
+
+  testWidgets('books a seat by UPI with no wallet, and refunds back to UPI on cancel', (tester) async {
+    await logIn(tester);
+    await tester.tap(find.text('Travel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Search buses'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('06:00 to 11:30'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('S1'));
+    await tester.pump();
+    await tester.enterText(find.widgetWithText(TextField, 'Passenger name'), 'Priya');
+    expect(find.text('Pay ₹549 · UPI, card or netbanking'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('pay-online')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('checkout-upi')));
+    await tester.pumpAndSettle();
+    expect(find.text('Ticket TKS1'), findsOneWidget);
+
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Home'));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, 'Guntur to Hyderabad');
+    await tester.tap(find.text('Guntur to Hyderabad'));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, 'Cancel ticket');
+    await tester.tap(find.byKey(const Key('cancel-ticket')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Cancel ticket').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Cancelled. ₹494.10 is on its way back to your UPI account (usually 3 to 5 working days)'), findsOneWidget);
   });
 
   testWidgets('shows stations on the map and as a list, with vehicle filters', (tester) async {

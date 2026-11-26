@@ -1,12 +1,30 @@
-import { Body, Controller, Delete, Get, Param, Put, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { CancellationPolicyService } from "../booking/cancellation-policy.service";
+import { RefundsService } from "../payments/refunds.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AdminGuard } from "./admin.guard";
 
 @Controller("admin")
 @UseGuards(AdminGuard)
 export class AdminController {
-  constructor(private readonly policies: CancellationPolicyService, private readonly db: PrismaService) {}
+  constructor(
+    private readonly policies: CancellationPolicyService,
+    private readonly db: PrismaService,
+    private readonly refunds: RefundsService,
+  ) {}
+
+  /** Refunds to UPI, card or bank, newest first. ?status=PENDING shows ones still on their way. */
+  @Get("refunds")
+  listRefunds(@Query("status") status?: string) {
+    return this.refunds.list(status);
+  }
+
+  /** Send refunds the gateway did not take (it was down), and check on ones in progress. */
+  @Post("refunds/retry")
+  @HttpCode(200)
+  retryRefunds() {
+    return this.refunds.retryPending();
+  }
 
   @Get("operators")
   async operators() {

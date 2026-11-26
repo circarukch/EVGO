@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/evgo_api.dart';
 import '../api/models.dart';
 import '../brand.dart';
+import 'checkout.dart';
 
 /// One wallet for bus fares and charging.
 class WalletScreen extends StatefulWidget {
@@ -20,17 +21,12 @@ class _WalletScreenState extends State<WalletScreen> {
 
   Future<void> _add(int paise) async {
     setState(() => _busy = true);
-    try {
-      await widget.api.addMoney(paise);
-    } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _wallet = widget.api.wallet();
-        });
-      }
+    await addMoneyWithCheckout(context, widget.api, paise);
+    if (mounted) {
+      setState(() {
+        _busy = false;
+        _wallet = widget.api.wallet();
+      });
     }
   }
 

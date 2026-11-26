@@ -5,6 +5,7 @@ import {
   GoneException,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -13,7 +14,11 @@ import { randomBytes } from "node:crypto";
 import { istClock } from "../common/time";
 import { config } from "../config";
 import { PrismaService } from "../prisma/prisma.service";
-import { lockWallet, operatorPayable, postJournal, USER_WALLET, walletBalance } from "../wallet/ledger";
+import { PAYMENT_GATEWAY, PaymentGateway } from "../payments/gateway";
+import { checkoutRef, gatewayCall } from "../payments/gateway-call";
+import { MockPaymentGateway } from "../payments/mock.gateway";
+import { RefundsService } from "../payments/refunds.service";
+import { GATEWAY_CLEARING, lockWallet, operatorPayable, postJournal, USER_WALLET, walletBalance } from "../wallet/ledger";
 import { WalletService } from "../wallet/wallet.service";
 import { cutoffHours, refundShare } from "./cancellation";
 import { CancellationPolicyService } from "./cancellation-policy.service";
@@ -42,6 +47,8 @@ export class BookingService {
     private readonly db: PrismaService,
     private readonly wallets: WalletService,
     private readonly policies: CancellationPolicyService,
+    private readonly refunds: RefundsService,
+    @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
   ) {}
 
   async seats(tripId: string) {
@@ -103,12 +110,7 @@ export class BookingService {
   async payWithWallet(userId: string, orderId: string) {
     const wallet = await this.wallets.walletFor(userId);
     return this.db.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
-      if (!order) throw new NotFoundException("Booking not found");
-      if (order.userId !== userId) throw new ForbiddenException();
-      if (order.status !== "PENDING") throw new ConflictException(`Booking is already ${order.status.toLowerCase()}`);
-      if (!order.expiresAt || order.expiresAt < new Date()) throw new GoneException("Seat hold expired. Choose seats again");
-
+      const order = await this.payableOrder(tx, userId, orderId);
       await lockWallet(tx, wallet.id);
       const balance = await walletBalance(tx, wallet.id);
       if (balance < order.totalPaise) {
@@ -117,52 +119,172 @@ export class BookingService {
           HttpStatus.PAYMENT_REQUIRED,
         );
       }
-
-      const metas = order.items.map((i) => i.meta as unknown as SeatMeta);
-      const tripId = metas[0].tripId;
-      const booked = await tx.tripSeatInventory.updateMany({
-        where: { tripId, holdOrderId: orderId, status: "held" },
-        data: { status: "booked", heldUntil: null },
-      });
-      if (booked.count !== order.items.length) throw new GoneException("Seat hold expired. Choose seats again");
-
-      const trip = await tx.trip.findUniqueOrThrow({
-        where: { id: tripId },
-        include: { schedule: { include: { route: { include: { stops: { orderBy: { sequence: "asc" } } } } } } },
-      });
-      const route = trip.schedule.route;
-      await postJournal(tx, [
-        { account: USER_WALLET, walletId: wallet.id, debitPaise: order.totalPaise, memo: `Bus ticket, ${route.name}` },
-        { account: operatorPayable(route.orgId), creditPaise: order.totalPaise, memo: `Order ${orderId}` },
-      ]);
+      const tickets = await this.issueTickets(tx, order, { account: USER_WALLET, walletId: wallet.id });
       await tx.payment.create({ data: { orderId, method: "wallet", amountPaise: order.totalPaise, status: "SUCCEEDED" } });
-
-      const tickets = [];
-      for (const [i, item] of order.items.entries()) {
-        const meta = metas[i];
-        tickets.push(
-          await tx.booking.create({
-            data: {
-              orderItemId: item.id,
-              tripId,
-              seatLabel: meta.seatLabel,
-              passengerName: meta.passengerName,
-              boardingStopId: route.stops[0].id,
-              droppingStopId: route.stops[route.stops.length - 1].id,
-              ticketCode: ticketCode(),
-            },
-          }),
-        );
-      }
-      await tx.order.update({ where: { id: orderId }, data: { status: "PAID", expiresAt: null } });
-      return {
-        orderId,
-        status: "PAID",
-        totalPaise: order.totalPaise,
-        balancePaise: balance - order.totalPaise,
-        tickets: tickets.map((t) => ({ ticketCode: t.ticketCode, seatLabel: t.seatLabel, passengerName: t.passengerName })),
-      };
+      return { orderId, status: "PAID", totalPaise: order.totalPaise, balancePaise: balance - order.totalPaise, payment: { method: "wallet" }, tickets };
     });
+  }
+
+  /**
+   * Pay by UPI, card or netbanking on Cashfree's checkout. Returns the session the app opens;
+   * then the app calls checkCheckout (and Cashfree's webhook does the same).
+   */
+  async startCheckout(userId: string, orderId: string) {
+    const order = await this.db.$transaction((tx) => this.payableOrder(tx, userId, orderId));
+    const user = await this.db.user.findUniqueOrThrow({ where: { id: userId } });
+    const ref = checkoutRef.order(orderId);
+    const payment = await this.db.payment.create({ data: { orderId, method: "online", gatewayRef: ref, amountPaise: order.totalPaise, status: "PENDING" } });
+    // Cashfree wants an order to stay open at least 15 minutes. If the customer pays after the seat
+    // hold has lapsed and the seats are gone, checkCheckout refunds them in full.
+    const expiresAt = new Date(Math.max(order.expiresAt!.getTime(), Date.now() + 16 * 60_000));
+    const checkout = await gatewayCall(() =>
+      this.gateway.createCheckout({ ref, amountPaise: order.totalPaise, description: "EVGO bus ticket", customerId: userId, customerPhone: user.phone, expiresAt }),
+    ).catch(async (e) => {
+      await this.db.payment.update({ where: { id: payment.id }, data: { status: "FAILED" } });
+      throw e;
+    });
+    return {
+      orderId,
+      paymentId: payment.id,
+      gateway: this.gateway.name,
+      amountPaise: order.totalPaise,
+      holdExpiresAt: order.expiresAt,
+      checkout: { gatewayOrderId: checkout.gatewayRef, paymentSessionId: checkout.paymentSessionId, environment: checkout.environment ?? null },
+    };
+  }
+
+  /** Was the checkout paid? If so issue the tickets. Safe to call any number of times. */
+  async checkCheckout(userId: string | null, orderId: string) {
+    const order = await this.db.order.findUnique({ where: { id: orderId }, include: { payments: { orderBy: { createdAt: "desc" } } } });
+    if (!order) throw new NotFoundException("Booking not found");
+    if (userId && order.userId !== userId) throw new ForbiddenException();
+    for (const p of order.payments.filter((x) => x.status === "PENDING" && x.gatewayRef)) {
+      const at = await gatewayCall(() => this.gateway.checkoutStatus(p.gatewayRef!));
+      if (at.status === "PAID") return this.settleCheckout(order.userId, orderId, p.id, at.method ?? "online");
+      if (at.status === "FAILED" || at.status === "EXPIRED") {
+        await this.db.payment.updateMany({ where: { id: p.id, status: "PENDING" }, data: { status: "FAILED" } });
+      }
+    }
+    return this.orderState(orderId);
+  }
+
+  /** Which booking a gateway order id belongs to (for webhooks). */
+  async orderIdForPaymentRef(gatewayRef: string) {
+    return (await this.db.payment.findUnique({ where: { gatewayRef } }))?.orderId ?? null;
+  }
+
+  /** Mock gateway only: stand in for the customer paying on the checkout. */
+  async mockPayCheckout(userId: string, orderId: string, method = "upi") {
+    if (!config.mockPayments || !(this.gateway instanceof MockPaymentGateway)) throw new NotFoundException();
+    const pending = await this.db.payment.findFirst({ where: { orderId, status: "PENDING", gatewayRef: { not: null } }, orderBy: { createdAt: "desc" } });
+    if (!pending) throw new NotFoundException("No payment waiting");
+    this.gateway.pay(pending.gatewayRef!, method);
+    return this.checkCheckout(userId, orderId);
+  }
+
+  private async settleCheckout(userId: string, orderId: string, paymentId: string, method: string) {
+    try {
+      return await this.db.$transaction(async (tx) => {
+        const flipped = await tx.payment.updateMany({ where: { id: paymentId, status: "PENDING" }, data: { status: "SUCCEEDED", method } });
+        if (flipped.count === 0) return this.orderState(orderId, tx);
+        const order = await tx.order.findUniqueOrThrow({ where: { id: orderId }, include: { items: true } });
+        if (order.status !== "PENDING") throw new ConflictException("Already paid");
+        const tickets = await this.issueTickets(tx, order, { account: GATEWAY_CLEARING });
+        return { orderId, status: "PAID", totalPaise: order.totalPaise, payment: { method }, tickets };
+      });
+    } catch (e) {
+      if (!(e instanceof GoneException || e instanceof ConflictException)) throw e;
+      // Paid, but the seats were let go (hold lapsed) or the order was already paid another way:
+      // keep the payment on record and send it all back.
+      const refundId = await this.db.$transaction(async (tx) => {
+        const flipped = await tx.payment.updateMany({ where: { id: paymentId, status: "PENDING" }, data: { status: "SUCCEEDED", method } });
+        if (flipped.count === 0) return null;
+        const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
+        await tx.order.updateMany({ where: { id: orderId, status: "PENDING" }, data: { status: "CANCELLED", expiresAt: null } });
+        const r = await tx.refund.create({
+          data: { paymentId, gateway: this.gateway.name, amountPaise: payment.amountPaise, reason: "Seats released before payment finished" },
+        });
+        return r.id;
+      });
+      if (refundId) await this.refunds.send(refundId);
+      const state = await this.orderState(orderId);
+      return { ...state, message: "The seat hold ran out before the payment finished, so the full amount is being refunded." };
+    }
+  }
+
+  private async orderState(orderId: string, db: Prisma.TransactionClient = this.db) {
+    const order = await db.order.findUniqueOrThrow({ where: { id: orderId }, include: { payments: { include: { refunds: true } }, items: { include: { booking: true } } } });
+    const paid = order.payments.find((p) => p.status === "SUCCEEDED");
+    return {
+      orderId,
+      status: order.status,
+      totalPaise: order.totalPaise,
+      payment: paid ? { method: paid.method } : null,
+      refunds: order.payments.flatMap((p) => p.refunds).map((r) => ({ amountPaise: r.amountPaise, status: r.status })),
+      tickets: order.status === "PAID"
+        ? order.items.filter((i) => i.booking).map((i) => ({ ticketCode: i.booking!.ticketCode, seatLabel: i.booking!.seatLabel, passengerName: i.booking!.passengerName }))
+        : [],
+    };
+  }
+
+  /** The order, if it can still be paid: the customer's, unpaid, and its seat hold still running. */
+  private async payableOrder(tx: Prisma.TransactionClient, userId: string, orderId: string) {
+    const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
+    if (!order) throw new NotFoundException("Booking not found");
+    if (order.userId !== userId) throw new ForbiddenException();
+    if (order.status !== "PENDING") throw new ConflictException(`Booking is already ${order.status.toLowerCase()}`);
+    if (!order.expiresAt || order.expiresAt < new Date()) throw new GoneException("Seat hold expired. Choose seats again");
+    return order;
+  }
+
+  /**
+   * Turn held seats into tickets and pay the operator. `from` is where the money comes from:
+   * the customer's wallet, or the gateway (money received through Cashfree).
+   */
+  private async issueTickets(
+    tx: Prisma.TransactionClient,
+    order: { id: string; totalPaise: number; items: { id: string; meta: Prisma.JsonValue }[] },
+    from: { account: string; walletId?: string },
+  ) {
+    const orderId = order.id;
+    const metas = order.items.map((i) => i.meta as unknown as SeatMeta);
+    const tripId = metas[0].tripId;
+    // Still held by this order (a lapsed hold that nobody else took still counts).
+    const booked = await tx.tripSeatInventory.updateMany({
+      where: { tripId, holdOrderId: orderId, status: "held" },
+      data: { status: "booked", heldUntil: null },
+    });
+    if (booked.count !== order.items.length) throw new GoneException("Seat hold expired. Choose seats again");
+
+    const trip = await tx.trip.findUniqueOrThrow({
+      where: { id: tripId },
+      include: { schedule: { include: { route: { include: { stops: { orderBy: { sequence: "asc" } } } } } } },
+    });
+    const route = trip.schedule.route;
+    await postJournal(tx, [
+      { ...from, debitPaise: order.totalPaise, memo: `Bus ticket, ${route.name}` },
+      { account: operatorPayable(route.orgId), creditPaise: order.totalPaise, memo: `Order ${orderId}` },
+    ]);
+
+    const tickets = [];
+    for (const [i, item] of order.items.entries()) {
+      const meta = metas[i];
+      tickets.push(
+        await tx.booking.create({
+          data: {
+            orderItemId: item.id,
+            tripId,
+            seatLabel: meta.seatLabel,
+            passengerName: meta.passengerName,
+            boardingStopId: route.stops[0].id,
+            droppingStopId: route.stops[route.stops.length - 1].id,
+            ticketCode: ticketCode(),
+          },
+        }),
+      );
+    }
+    await tx.order.update({ where: { id: orderId }, data: { status: "PAID", expiresAt: null } });
+    return tickets.map((t) => ({ ticketCode: t.ticketCode, seatLabel: t.seatLabel, passengerName: t.passengerName }));
   }
 
   /** Let go of held seats without paying. */
@@ -181,11 +303,15 @@ export class BookingService {
     });
   }
 
-  /** Cancel a paid booking and refund to the wallet under the cancellation policy. */
+  /**
+   * Cancel a paid booking under the operator's cancellation policy. The refund goes back the way
+   * the customer paid: to the wallet for wallet payments, otherwise through Cashfree to their UPI,
+   * card or bank account.
+   */
   async cancel(userId: string, orderId: string) {
     const wallet = await this.wallets.walletFor(userId);
-    return this.db.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: { include: { booking: true } } } });
+    const result = await this.db.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: { include: { booking: true } }, payments: true } });
       if (!order) throw new NotFoundException("Booking not found");
       if (order.userId !== userId) throw new ForbiddenException();
       if (order.status !== "PAID") throw new ConflictException("Only paid bookings can be cancelled");
@@ -207,18 +333,40 @@ export class BookingService {
         where: { tripId, holdOrderId: orderId, status: "booked" },
         data: { status: "available", holdOrderId: null },
       });
+      const paid = order.payments.find((p) => p.status === "SUCCEEDED");
+      const toSource = !!paid && paid.method !== "wallet" && !!paid.gatewayRef;
+      let refundId: string | null = null;
       if (refundPaise > 0) {
         await postJournal(tx, [
           { account: operatorPayable(trip.schedule.route.orgId), debitPaise: refundPaise, memo: `Refund ${orderId}` },
-          { account: USER_WALLET, walletId: wallet.id, creditPaise: refundPaise, memo: `Refund, ${trip.schedule.route.name}` },
+          toSource
+            ? { account: GATEWAY_CLEARING, creditPaise: refundPaise, memo: `Refund to ${paid!.method}, ${trip.schedule.route.name}` }
+            : { account: USER_WALLET, walletId: wallet.id, creditPaise: refundPaise, memo: `Refund, ${trip.schedule.route.name}` },
         ]);
+        if (toSource) {
+          const r = await tx.refund.create({
+            data: { paymentId: paid!.id, gateway: this.gateway.name, amountPaise: refundPaise, reason: `Cancelled ${trip.schedule.route.name}` },
+          });
+          refundId = r.id;
+        }
       }
       await tx.order.update({
         where: { id: orderId },
         data: { status: refundPaise === order.totalPaise ? "REFUNDED" : "PARTIALLY_REFUNDED" },
       });
-      return { orderId, refundPaise, cancellationFeePaise: order.totalPaise - refundPaise, balancePaise: await walletBalance(tx, wallet.id) };
+      return {
+        orderId,
+        refundPaise,
+        cancellationFeePaise: order.totalPaise - refundPaise,
+        refundTo: refundPaise === 0 ? null : toSource ? paid!.method : "wallet",
+        refundId,
+        balancePaise: await walletBalance(tx, wallet.id),
+      };
     });
+    // Sent after the cancellation is saved; if the gateway is down it is retried later.
+    const refundStatus = result.refundId ? await this.refunds.send(result.refundId) : result.refundPaise > 0 ? "SUCCEEDED" : null;
+    const { refundId: _id, ...rest } = result;
+    return { ...rest, refundStatus };
   }
 
   /** Everything the ticket screen shows: date, boarding and drop, bus, seats and fares, payment, refund, policy. */

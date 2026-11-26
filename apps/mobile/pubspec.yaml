@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_cashfree_pg_sdk: ^2.7.0+55
   flutter_map: ^8.3.2
   http: ^1.2.2
   latlong2: ^0.10.1

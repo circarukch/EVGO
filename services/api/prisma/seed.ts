@@ -9,7 +9,8 @@ const DAYS_AHEAD = 14;
 async function wipe() {
   // Child tables first.
   for (const t of [
-    "CancellationPolicy", "LedgerEntry", "Hold", "TopUp", "Payment", "Booking", "ChargingSession", "OrderItem", "Order", "TripSeatInventory",
+    "CancellationPolicy", "LedgerEntry", "Hold", "TopUp", "Refund",
+    "Payment", "Booking", "ChargingSession", "OrderItem", "Order", "TripSeatInventory",
     "Trip", "Schedule", "Stop", "Route", "Bus", "Seat", "SeatLayout", "Alarm", "Connector", "Charger", "Tariff", "Site",
     "RfidToken", "OperatorUser", "Vehicle", "Passenger", "WalletAccount", "OtpChallenge", "User", "Organisation", "Place",
   ]) {

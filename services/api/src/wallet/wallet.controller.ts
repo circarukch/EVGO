@@ -17,8 +17,14 @@ export class WalletController {
     return this.wallet.createTopUp(user.id, body?.amountPaise);
   }
 
+  /** After Cashfree's checkout closes: was it paid? */
+  @Post("topups/:id/check")
+  check(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.wallet.checkTopUp(user.id, id);
+  }
+
   @Post("topups/:id/mock-confirm")
-  mockConfirm(@CurrentUser() user: AuthUser, @Param("id") id: string) {
-    return this.wallet.mockConfirm(user.id, id);
+  mockConfirm(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: { method?: string }) {
+    return this.wallet.mockConfirm(user.id, id, body?.method);
   }
 }

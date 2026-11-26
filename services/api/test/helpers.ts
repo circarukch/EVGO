@@ -8,7 +8,7 @@ import { PrismaService } from "../src/prisma/prisma.service";
 
 export async function createApp(): Promise<INestApplication> {
   const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  const app = mod.createNestApplication({ logger: false });
+  const app = mod.createNestApplication({ logger: false, rawBody: true });
   app.setGlobalPrefix("v1");
   await app.init();
   return app;

@@ -52,8 +52,8 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
     setState(() => _cancelling = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final refund = await widget.api.cancelBooking(b.orderId);
-      messenger.showSnackBar(SnackBar(content: Text('Cancelled. ${rupees(refund)} refunded to your wallet')));
+      final result = await widget.api.cancelBooking(b.orderId);
+      messenger.showSnackBar(SnackBar(content: Text(result.message)));
       final fresh = (await widget.api.myBookings()).where((x) => x.orderId == b.orderId);
       if (mounted && fresh.isNotEmpty) setState(() => b = fresh.first);
     } on ApiException catch (e) {

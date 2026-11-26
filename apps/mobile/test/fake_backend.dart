@@ -9,6 +9,9 @@ class FakeBackend {
   final held = <String>{};
   final booked = <String>{};
   bool cancelled = false;
+  String paidMethod = 'wallet';
+  List<Map<String, dynamic>> lastTickets = [];
+  bool topUpPaid = false;
   final history = <Map<String, dynamic>>[];
   bool loggedIn = false;
 
@@ -67,8 +70,36 @@ class FakeBackend {
     }
     if (path == '/bookings/O1aaaaaa-0000/cancel') {
       cancelled = true;
-      balancePaise += 49410;
-      return json({'orderId': 'O1aaaaaa-0000', 'refundPaise': 49410, 'balancePaise': balancePaise}, 201);
+      final toWallet = paidMethod == 'wallet';
+      if (toWallet) balancePaise += 49410;
+      return json({
+        'orderId': 'O1aaaaaa-0000',
+        'refundPaise': 49410,
+        'refundTo': paidMethod,
+        'refundStatus': toWallet ? 'SUCCEEDED' : 'PENDING',
+        'balancePaise': balancePaise
+      }, 201);
+    }
+    if (path == '/bookings/O1/checkout') {
+      return json({
+        'orderId': 'O1',
+        'gateway': 'mock',
+        'amountPaise': 54900 * held.length,
+        'checkout': {'gatewayOrderId': 'ord_O1', 'paymentSessionId': 'mock_session_ord_O1', 'environment': null},
+      }, 201);
+    }
+    if (path == '/bookings/O1/checkout/mock-pay') {
+      paidMethod = body['method'] as String;
+      lastTickets = _issue();
+      return json({
+        'orderId': 'O1',
+        'status': 'PAID',
+        'tickets': lastTickets,
+        'payment': {'method': paidMethod}
+      }, 201);
+    }
+    if (path == '/bookings/O1/checkout/check') {
+      return json({'orderId': 'O1', 'status': lastTickets.isEmpty ? 'PENDING' : 'PAID', 'tickets': lastTickets}, 201);
     }
     if (path == '/bookings' && req.method == 'GET') {
       return json([
@@ -85,14 +116,15 @@ class FakeBackend {
             'dropping': {'name': 'MGBS', 'city': 'Hyderabad', 'at': '2026-12-04T06:00:00Z', 'time': '11:30'},
             'operator': 'EVGO Bus Lines',
             'bus': {'registration': 'AP 07 EV 1234'},
-            'payment': {'method': 'wallet', 'amountPaise': 54900 * booked.length},
+            'payment': {'method': paidMethod, 'amountPaise': 54900 * booked.length},
             'refundPaise': cancelled ? 49410 : 0,
             'cancellationPolicy': [
               {'minHoursBefore': 24, 'refundPercent': 90},
               {'minHoursBefore': 6, 'refundPercent': 50},
             ],
             'tickets': [
-              for (final s in booked) {'seatLabel': s, 'ticketCode': 'TK$s', 'passengerName': 'Priya', 'status': 'CONFIRMED', 'farePaise': 54900}
+              for (final s in booked)
+                {'seatLabel': s, 'ticketCode': 'TK$s', 'passengerName': 'Priya', 'status': 'CONFIRMED', 'farePaise': 54900}
             ]
           }
       ]);
@@ -104,21 +136,32 @@ class FakeBackend {
       }
       balancePaise -= total;
       history.add({'amountPaise': -total, 'memo': 'Bus ticket, Guntur to Hyderabad'});
-      final tickets = [
-        for (final s in held) {'ticketCode': 'TK$s', 'seatLabel': s, 'passengerName': 'Priya'}
-      ];
-      booked.addAll(held);
-      held.clear();
-      return json({'status': 'PAID', 'tickets': tickets}, 201);
+      paidMethod = 'wallet';
+      return json({
+        'status': 'PAID',
+        'tickets': _issue(),
+        'payment': {'method': 'wallet'}
+      }, 201);
     }
     if (path == '/wallet') return json({'balancePaise': balancePaise, 'history': history.reversed.toList()});
-    if (path == '/wallet/topups') return json({'topUpId': 'P1', 'amountPaise': body['amountPaise'], 'gateway': 'mock'}, 201);
+    if (path == '/wallet/topups') {
+      topUpPaid = false;
+      return json({
+        'topUpId': 'P1',
+        'amountPaise': body['amountPaise'],
+        'gateway': 'mock',
+        'checkout': {'gatewayOrderId': 'topup_P1', 'paymentSessionId': 'mock_session_topup_P1', 'environment': null},
+      }, 201);
+    }
     if (path == '/wallet/topups/P1/mock-confirm') {
       // The fake remembers nothing about amounts per top-up; credit the last requested amount.
       balancePaise += _lastTopUp;
-      history.add({'amountPaise': _lastTopUp, 'memo': 'Added money to wallet'});
+      topUpPaid = true;
+      final by = {'upi': ' by UPI', 'card': ' by card', 'netbanking': ' by netbanking'}[body['method']] ?? '';
+      history.add({'amountPaise': _lastTopUp, 'memo': 'Added money to wallet$by'});
       return json({'status': 'SUCCEEDED'}, 201);
     }
+    if (path == '/wallet/topups/P1/check') return json({'status': topUpPaid ? 'SUCCEEDED' : 'FAILED'}, 201);
     if (path == '/chargers') {
       return json([
         {
@@ -198,7 +241,10 @@ class FakeBackend {
       }
       return json({'block': block, 'session': _session()}, 201);
     }
-    if (path == '/charging/sessions' && req.method == 'GET') return json({'sessions': session == null ? [] : [_session()]});
+    if (path == '/charging/sessions' && req.method == 'GET')
+      return json({
+        'sessions': session == null ? [] : [_session()]
+      });
     if (path == '/charging/sessions/active') return json({'session': session?['status'] == 'ACTIVE' ? _session() : null});
     if (path == '/charging/sessions/s1') {
       session!['energyWh'] = (session!['energyWh'] as int) + 1500;
@@ -219,6 +265,17 @@ class FakeBackend {
   });
 
   int _lastTopUp = 0;
+
+  /// Held seats become tickets.
+  List<Map<String, dynamic>> _issue() {
+    final tickets = [
+      for (final s in held) {'ticketCode': 'TK$s', 'seatLabel': s, 'passengerName': 'Priya'}
+    ];
+    booked.addAll(held);
+    held.clear();
+    return tickets;
+  }
+
   Map<String, Object?>? session;
   Map<String, Object?>? block;
 
