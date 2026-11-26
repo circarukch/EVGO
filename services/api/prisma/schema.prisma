@@ -1,0 +1,389 @@
+// EVGO data model, first cut. Mirrors the "Data model overview" in the plan.
+// Bus seats and charging sessions are both OrderItems, so one wallet, one
+// history and one refund flow cover both. A Place can be a bus stop, a
+// charging site, or both.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+// ---------- Identity ----------
+
+model User {
+  id         String         @id @default(uuid())
+  phone      String         @unique
+  name       String?
+  email      String?
+  kycLevel   Int            @default(0)
+  createdAt  DateTime       @default(now())
+  vehicles   Vehicle[]
+  passengers Passenger[]
+  orders     Order[]
+  wallet     WalletAccount?
+  rfidTokens RfidToken[]
+}
+
+enum VehicleSegment {
+  TWO_WHEELER
+  THREE_WHEELER
+  FOUR_WHEELER
+  BUS
+  TRUCK
+}
+
+enum ConnectorType {
+  CCS2
+  TYPE2
+  GBT
+  BHARAT_DC001
+  LEV_AC
+  LECCS
+}
+
+model Vehicle {
+  id           String          @id @default(uuid())
+  userId       String?
+  orgId        String?
+  segment      VehicleSegment
+  make         String
+  model        String
+  registration String?
+  batteryKwh   Decimal?        @db.Decimal(6, 1)
+  connectors   ConnectorType[]
+  user         User?           @relation(fields: [userId], references: [id])
+  organisation Organisation?   @relation(fields: [orgId], references: [id])
+  bus          Bus?
+}
+
+model Passenger {
+  id     String  @id @default(uuid())
+  userId String
+  name   String
+  age    Int?
+  gender String?
+  user   User    @relation(fields: [userId], references: [id])
+}
+
+enum OrgKind {
+  PLATFORM
+  CPO
+  BUS_OPERATOR
+  FLEET
+  SITE_HOST
+}
+
+model Organisation {
+  id           String         @id @default(uuid())
+  name         String
+  kinds        OrgKind[]
+  gstin        String?
+  commissionBp Int            @default(0) // basis points
+  users        OperatorUser[]
+  sites        Site[]
+  buses        Bus[]
+  routes       Route[]
+  vehicles     Vehicle[]
+  tariffs      Tariff[]
+  rfidTokens   RfidToken[]
+}
+
+model OperatorUser {
+  id    String       @id @default(uuid())
+  orgId String
+  email String       @unique
+  role  String // e.g. org_admin, depot_manager, technician, conductor
+  org   Organisation @relation(fields: [orgId], references: [id])
+}
+
+model RfidToken {
+  id      String        @id @default(uuid())
+  idTag   String        @unique
+  userId  String?
+  orgId   String?
+  blocked Boolean       @default(false)
+  user    User?         @relation(fields: [userId], references: [id])
+  org     Organisation? @relation(fields: [orgId], references: [id])
+}
+
+// ---------- Location (shared) ----------
+
+model Place {
+  id       String                                @id @default(uuid())
+  name     String
+  city     String
+  location Unsupported("geography(Point, 4326)")
+  isStop   Boolean                               @default(false)
+  isSite   Boolean                               @default(false)
+  stops    Stop[]
+  sites    Site[]
+}
+
+// ---------- Commerce and wallet (shared) ----------
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+model Order {
+  id         String      @id @default(uuid())
+  userId     String
+  status     OrderStatus @default(PENDING)
+  totalPaise Int
+  createdAt  DateTime    @default(now())
+  user       User        @relation(fields: [userId], references: [id])
+  items      OrderItem[]
+  payments   Payment[]
+}
+
+enum OrderItemType {
+  BUS_SEAT
+  CHARGING_SESSION
+  CHARGING_RESERVATION
+}
+
+model OrderItem {
+  id              String           @id @default(uuid())
+  orderId         String
+  type            OrderItemType
+  amountPaise     Int
+  gstPaise        Int              @default(0)
+  order           Order            @relation(fields: [orderId], references: [id])
+  booking         Booking?
+  chargingSession ChargingSession?
+}
+
+model Payment {
+  id          String   @id @default(uuid())
+  orderId     String
+  method      String // upi, card, netbanking, wallet, upi_autopay
+  gatewayRef  String?
+  amountPaise Int
+  status      String
+  createdAt   DateTime @default(now())
+  order       Order    @relation(fields: [orderId], references: [id])
+}
+
+model WalletAccount {
+  id      String        @id @default(uuid())
+  userId  String        @unique
+  user    User          @relation(fields: [userId], references: [id])
+  entries LedgerEntry[]
+  holds   Hold[]
+}
+
+// Double-entry: every movement writes balanced debit/credit rows sharing a journalId.
+model LedgerEntry {
+  id          String         @id @default(uuid())
+  journalId   String
+  walletId    String?
+  account     String // e.g. user_wallet, gateway_clearing, operator_payable:<orgId>, evgo_revenue, gst_payable
+  debitPaise  Int            @default(0)
+  creditPaise Int            @default(0)
+  memo        String?
+  createdAt   DateTime       @default(now())
+  wallet      WalletAccount? @relation(fields: [walletId], references: [id])
+
+  @@index([journalId])
+}
+
+model Hold {
+  id          String        @id @default(uuid())
+  walletId    String
+  amountPaise Int
+  reason      String // charging_preauth, seat_hold
+  releasedAt  DateTime?
+  wallet      WalletAccount @relation(fields: [walletId], references: [id])
+}
+
+// ---------- Bus ----------
+
+model Bus {
+  id           String       @id @default(uuid())
+  orgId        String
+  vehicleId    String?      @unique
+  registration String
+  layoutId     String
+  org          Organisation @relation(fields: [orgId], references: [id])
+  vehicle      Vehicle?     @relation(fields: [vehicleId], references: [id])
+  layout       SeatLayout   @relation(fields: [layoutId], references: [id])
+  trips        Trip[]
+}
+
+model SeatLayout {
+  id    String @id @default(uuid())
+  name  String
+  seats Seat[]
+  buses Bus[]
+}
+
+model Seat {
+  id       String     @id @default(uuid())
+  layoutId String
+  label    String // e.g. L1, U12
+  kind     String // seater, sleeper
+  deck     Int        @default(1)
+  layout   SeatLayout @relation(fields: [layoutId], references: [id])
+}
+
+model Route {
+  id        String       @id @default(uuid())
+  orgId     String
+  name      String
+  org       Organisation @relation(fields: [orgId], references: [id])
+  stops     Stop[]
+  schedules Schedule[]
+}
+
+model Stop {
+  id            String  @id @default(uuid())
+  routeId       String
+  placeId       String
+  sequence      Int
+  offsetMinutes Int // minutes after departure
+  boarding      Boolean @default(true)
+  dropping      Boolean @default(true)
+  route         Route   @relation(fields: [routeId], references: [id])
+  place         Place   @relation(fields: [placeId], references: [id])
+}
+
+model Schedule {
+  id          String @id @default(uuid())
+  routeId     String
+  departsTime String // HH:mm local
+  daysOfWeek  Int[]
+  route       Route  @relation(fields: [routeId], references: [id])
+  trips       Trip[]
+}
+
+model Trip {
+  id         String              @id @default(uuid())
+  scheduleId String
+  busId      String?
+  departsAt  DateTime
+  status     String              @default("scheduled")
+  schedule   Schedule            @relation(fields: [scheduleId], references: [id])
+  bus        Bus?                @relation(fields: [busId], references: [id])
+  inventory  TripSeatInventory[]
+  bookings   Booking[]
+}
+
+model TripSeatInventory {
+  id        String @id @default(uuid())
+  tripId    String
+  seatLabel String
+  farePaise Int
+  status    String @default("available") // available, held, booked, blocked
+  trip      Trip   @relation(fields: [tripId], references: [id])
+
+  @@unique([tripId, seatLabel])
+}
+
+model Booking {
+  id             String    @id @default(uuid())
+  orderItemId    String    @unique
+  tripId         String
+  seatLabel      String
+  passengerName  String
+  boardingStopId String
+  droppingStopId String
+  ticketCode     String    @unique
+  boardedAt      DateTime?
+  orderItem      OrderItem @relation(fields: [orderItemId], references: [id])
+  trip           Trip      @relation(fields: [tripId], references: [id])
+}
+
+// ---------- Charging ----------
+
+model Site {
+  id       String       @id @default(uuid())
+  orgId    String
+  placeId  String
+  name     String
+  access   String       @default("public") // public, fleet_only, shared_off_peak
+  org      Organisation @relation(fields: [orgId], references: [id])
+  place    Place        @relation(fields: [placeId], references: [id])
+  chargers Charger[]
+}
+
+model Charger {
+  id            String            @id @default(uuid())
+  siteId        String
+  chargePointId String            @unique // OCPP identity in the WebSocket URL
+  vendor        String?
+  model         String?
+  firmware      String?
+  ocppVersion   String            @default("1.6J")
+  lastSeenAt    DateTime?
+  site          Site              @relation(fields: [siteId], references: [id])
+  connectors    Connector[]
+  sessions      ChargingSession[]
+  alarms        Alarm[]
+}
+
+model Connector {
+  id         String           @id @default(uuid())
+  chargerId  String
+  ocppId     Int
+  type       ConnectorType
+  maxPowerKw Decimal          @db.Decimal(6, 1)
+  segments   VehicleSegment[]
+  status     String           @default("Unavailable")
+  tariffId   String?
+  charger    Charger          @relation(fields: [chargerId], references: [id])
+  tariff     Tariff?          @relation(fields: [tariffId], references: [id])
+
+  @@unique([chargerId, ocppId])
+}
+
+model Tariff {
+  id                 String       @id @default(uuid())
+  orgId              String
+  name               String
+  perKwhPaise        Int
+  perMinutePaise     Int          @default(0)
+  sessionFeePaise    Int          @default(0)
+  idleFeePerMinPaise Int          @default(0)
+  org                Organisation @relation(fields: [orgId], references: [id])
+  connectors         Connector[]
+}
+
+model ChargingSession {
+  id                String     @id @default(uuid())
+  chargerId         String
+  connectorOcppId   Int
+  ocppTransactionId Int
+  idTag             String
+  orderItemId       String?    @unique
+  meterStartWh      Int
+  meterStopWh       Int?
+  startedAt         DateTime
+  stoppedAt         DateTime?
+  stopReason        String?
+  charger           Charger    @relation(fields: [chargerId], references: [id])
+  orderItem         OrderItem? @relation(fields: [orderItemId], references: [id])
+
+  @@unique([chargerId, ocppTransactionId])
+}
+
+// Meter values go to a TimescaleDB hypertable (see infra/db/init.sql), not Prisma.
+
+model Alarm {
+  id          String    @id @default(uuid())
+  chargerId   String
+  connectorId Int?
+  errorCode   String
+  raisedAt    DateTime  @default(now())
+  clearedAt   DateTime?
+  charger     Charger   @relation(fields: [chargerId], references: [id])
+}
