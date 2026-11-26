@@ -105,7 +105,19 @@ void main() {
     // Power labels under the pins; a label that would cover a nearby pin waits until the user zooms in.
     expect(find.text('240 kW DC'), findsOneWidget);
     expect(find.textContaining(RegExp(r'^\d+ kW (AC|DC)')), findsWidgets);
-    expect(find.byType(ChoiceChip), findsNWidgets(6));
+    // Four filters in one row: vehicle, AC/DC, power, plug.
+    for (final f in ['Vehicle', 'AC / DC', 'Power', 'Plug']) {
+      expect(find.text(f), findsOneWidget);
+    }
+    await tester.tap(find.byKey(const Key('filter-vehicle')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bus').last);
+    await tester.pumpAndSettle();
+    expect(find.descendant(of: find.byKey(const Key('filter-vehicle')), matching: find.text('Bus')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('filter-vehicle')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All vehicles').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('List'));
     await tester.pumpAndSettle();
     expect(find.text('Guntur EVGO Hub'), findsOneWidget);
@@ -151,7 +163,7 @@ void main() {
     await tester.tap(find.byKey(const Key('clear-filters')));
     await tester.pumpAndSettle();
     expect(find.text('Vijayawada Benz Circle'), findsOneWidget);
-    expect(find.text('Any kW'), findsOneWidget);
+    expect(find.text('Any'), findsNWidgets(3)); // AC/DC, power and plug back to Any
   });
 
   testWidgets('starts charging from the station sheet, watches it live, stops and sees the bill', (tester) async {
