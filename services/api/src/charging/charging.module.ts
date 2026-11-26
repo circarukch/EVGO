@@ -2,12 +2,12 @@ import { Module } from "@nestjs/common";
 import { config } from "../config";
 import { WalletModule } from "../wallet/wallet.module";
 import { CHARGER_CONTROL, NotConnectedChargerControl, SimulatedChargerControl } from "./charger-control";
-import { ChargingController } from "./charging.controller";
+import { ChargingController, UpiBlockController } from "./charging.controller";
 import { ChargingService } from "./charging.service";
 
 @Module({
   imports: [WalletModule],
-  controllers: [ChargingController],
+  controllers: [ChargingController, UpiBlockController],
   providers: [
     ChargingService,
     {

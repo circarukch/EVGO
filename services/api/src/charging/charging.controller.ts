@@ -1,6 +1,39 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { AuthGuard, AuthUser, CurrentUser } from "../auth/auth.guard";
 import { ChargingService } from "./charging.service";
+
+/** Pay for charging with no wallet: block an amount by UPI, start once approved, pay only what was used. */
+@Controller("charging/upi-blocks")
+@UseGuards(AuthGuard)
+export class UpiBlockController {
+  constructor(private readonly charging: ChargingService) {}
+
+  @Post()
+  create(@CurrentUser() user: AuthUser, @Body() body: { chargePointId: string; connectorId: number; amountPaise: number }) {
+    return this.charging.createUpiBlock(user.id, body?.chargePointId, Number(body?.connectorId), Number(body?.amountPaise));
+  }
+
+  /** Poll after the customer returns from their UPI app: starts charging once the amount is blocked. */
+  @Post(":id/start")
+  start(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.charging.startWithUpiBlock(user.id, id);
+  }
+
+  @Delete(":id")
+  cancel(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.charging.cancelUpiBlock(user.id, id);
+  }
+
+  @Post(":id/mock-approve")
+  mockApprove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.charging.mockUpiDecision(user.id, id, true);
+  }
+
+  @Post(":id/mock-decline")
+  mockDecline(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.charging.mockUpiDecision(user.id, id, false);
+  }
+}
 
 @Controller("charging/sessions")
 @UseGuards(AuthGuard)

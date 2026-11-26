@@ -21,6 +21,33 @@ function chargerControl(): "simulated" | "gateway" {
   return v === "simulated" ? "simulated" : "gateway";
 }
 
+type PaymentGatewayConfig =
+  | { kind: "mock" }
+  | { kind: "none" }
+  | { kind: "cashfree"; appId: string; secretKey: string; baseUrl: string; apiVersion: string };
+
+/** "mock" outside production; Cashfree once its keys are set; otherwise paying by UPI is off. */
+function paymentGateway(): PaymentGatewayConfig {
+  const v = process.env.PAYMENT_GATEWAY ?? (env === "production" ? "cashfree" : "mock");
+  if (v === "mock") {
+    if (env === "production") throw new Error("The mock payment gateway cannot run in production");
+    return { kind: "mock" };
+  }
+  if (v === "cashfree") {
+    const appId = process.env.CASHFREE_APP_ID;
+    const secretKey = process.env.CASHFREE_SECRET_KEY;
+    if (!appId || !secretKey) return { kind: "none" };
+    return {
+      kind: "cashfree",
+      appId,
+      secretKey,
+      baseUrl: process.env.CASHFREE_BASE_URL ?? (env === "production" ? "https://api.cashfree.com" : "https://sandbox.cashfree.com"),
+      apiVersion: process.env.CASHFREE_API_VERSION ?? "2025-01-01",
+    };
+  }
+  return { kind: "none" };
+}
+
 export const config = {
   env,
   jwtSecret: jwtSecret(),
@@ -40,6 +67,13 @@ export const config = {
   chargingSimSpeedup: Number(process.env.CHARGING_SIM_SPEEDUP ?? 1),
   /** Wallet balance needed to start a charging session (₹100). */
   chargingMinStartPaise: 10_000,
+  paymentGateway: paymentGateway(),
+  /** Largest UPI block for one charging session (₹10,000, the usual UPI block limit). */
+  upiBlockMaxPaise: 1_000_000,
+  /** Minutes the customer has to approve a block in their UPI app. */
+  upiApproveMinutes: 5,
+  /** Hours a charging block stays valid if never captured (the bank releases it after). */
+  upiBlockValidHours: 24,
   topUpMinPaise: 100, // ₹1
   topUpMaxPaise: 10_000_000, // ₹1,00,000, the usual limit for a full-KYC prepaid wallet
 };
