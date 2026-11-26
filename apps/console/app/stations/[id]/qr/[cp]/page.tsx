@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 import { notFound } from "next/navigation";
-import { adminFetch } from "../../../../../lib/api";
+import { adminFetch, orNull } from "../../../../../lib/api";
 import { PrintButton } from "./print-button";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ type Codes = { station: string; chargePointId: string; codes: { connectorId: num
 /** One sticker per plug. The app scans EVGO:<charger>:<plug>; the printed code is for typing in when the camera fails. */
 export default async function QrSheet({ params }: { params: Promise<{ id: string; cp: string }> }) {
   const { cp } = await params;
-  const res = await adminFetch(`/admin/chargers/${encodeURIComponent(decodeURIComponent(cp))}/qr`).catch(() => null);
+  const res = await adminFetch(`/admin/chargers/${encodeURIComponent(decodeURIComponent(cp))}/qr`).catch(orNull);
   if (!res?.ok) notFound();
   const data: Codes = await res.json();
   const svgs = await Promise.all(data.codes.map((c) => QRCode.toString(c.payload, { type: "svg", errorCorrectionLevel: "M", margin: 1, width: 240 })));

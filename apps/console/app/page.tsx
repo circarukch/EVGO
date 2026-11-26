@@ -17,13 +17,16 @@ async function loadChargers(): Promise<Charger[] | null> {
   }
 }
 
-export default async function ChargersBoard() {
+export default async function ChargersBoard({ searchParams }: { searchParams: Promise<{ denied?: string; password?: string }> }) {
+  const { denied, password } = await searchParams;
   const chargers = await loadChargers();
   if (chargers === null) return <p>API unreachable at {API}.</p>;
   const connectors = chargers.flatMap((c) => c.connectors);
   const faulted = connectors.filter((k) => k.status === "Faulted").length;
   return (
     <main>
+      {denied && <p className="secret">That page is for EVGO admins only.</p>}
+      {password && <p className="notice">Password saved.</p>}
       <h1>Chargers</h1>
       <p>
         {chargers.length} public chargers, {connectors.length} connectors, {faulted} faulted

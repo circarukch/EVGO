@@ -54,9 +54,29 @@ Logo, icon and colours are in [docs/brand](docs/brand/README.md) and `packages/b
 ## Operator settings
 
 Refund rules for cancellations are set per bus operator in the console
-(Cancellation and refunds). Until operator accounts exist, the console server calls the
-API's `/admin` routes with a shared key: set the same value as `ADMIN_API_KEY` on the API
-and `EVGO_ADMIN_API_KEY` on the console (both default to `dev-admin-key` outside production).
+(Cancellation and refunds).
+
+### Console sign-in
+
+Everyone signs in to the console with an email and password.
+
+- **Admin**: everything, including console users, shop and refund settings.
+- **Station operator**: only their own company's stations and chargers.
+
+Development accounts (from the seed): `admin@evgo.local` / `evgo-admin-dev` and
+`operator@partner.local` / `evgo-operator-dev`.
+
+On a new server, create the first admin, then add everyone else under **Console users**:
+
+```bash
+pnpm --filter @evgo/api operator:create you@company.in "Your Name"   # prints a temporary password once
+```
+
+New users get a temporary password and must choose their own at first sign-in. Five wrong
+passwords lock an account for 15 minutes; an admin can reset it. Sign-ins last 12 hours and
+end at once when the password is changed or reset, or the account is switched off.
+The `ADMIN_API_KEY` header still works for scripts and tests and acts as an admin; the console
+no longer uses it.
 
 ## What works today
 

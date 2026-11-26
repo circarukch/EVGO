@@ -4,6 +4,7 @@ import { ConnectorType, PrismaClient, VehicleSegment } from "@prisma/client";
 import { istDate, istInstant } from "../src/common/time";
 
 import { SAMPLE_CHARGERS } from "./sample-chargers";
+import { hashPassword } from "../src/common/password";
 
 const db = new PrismaClient();
 const DAYS_AHEAD = 14;
@@ -130,6 +131,22 @@ async function main() {
       await db.tripSeatInventory.createMany({ data: seats.map((s) => ({ tripId: trip.id, seatLabel: s.label, farePaise: p.farePaise })) });
     }
   }
+  // Console sign-ins for development only (the seed never runs in production).
+  // Real accounts: `pnpm --filter @evgo/api operator:create <email> "<name>"`, then add others in the console.
+  await db.operatorUser.create({
+    data: { email: "admin@evgo.local", name: "Dev Admin", role: "admin", orgId: evgo.id, passwordHash: hashPassword("evgo-admin-dev"), mustChangePassword: false },
+  });
+  await db.operatorUser.create({
+    data: {
+      email: "operator@partner.local",
+      name: "Partner Station Operator",
+      role: "station_operator",
+      orgId: partnerCpo.id,
+      passwordHash: hashPassword("evgo-operator-dev"),
+      mustChangePassword: false,
+    },
+  });
+
   // Charger shop: SAMPLE products until real ones are added in the console.
   for (const [i, p] of SAMPLE_CHARGERS.entries()) {
     await db.chargerProduct.create({ data: { ...p, isSample: true, sortOrder: i } });

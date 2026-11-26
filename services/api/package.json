@@ -10,7 +10,8 @@
     "prisma:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "operator:create": "tsx prisma/create-operator.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",

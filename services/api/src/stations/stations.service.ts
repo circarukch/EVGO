@@ -79,14 +79,28 @@ export class StationsService {
     return `${config.ocppPublicUrl}/${encodeURIComponent(chargePointId)}`;
   }
 
-  async operators() {
-    const orgs = await this.db.organisation.findMany({ where: { kinds: { hasSome: ["CPO", "PLATFORM"] } }, orderBy: { name: "asc" } });
+  /** Charging operators a station can belong to; only their own for a station operator. */
+  async operators(onlyOrgId?: string | null) {
+    const orgs = await this.db.organisation.findMany({
+      where: { kinds: { hasSome: ["CPO", "PLATFORM"] }, ...(onlyOrgId ? { id: onlyOrgId } : {}) },
+      orderBy: { name: "asc" },
+    });
     return orgs.map((o) => ({ id: o.id, name: o.name }));
   }
 
-  async list() {
-    const rows = await this.db.site.findMany({ include: stationInclude, orderBy: { name: "asc" } });
+  async list(onlyOrgId?: string | null) {
+    const rows = await this.db.site.findMany({ where: onlyOrgId ? { orgId: onlyOrgId } : {}, include: stationInclude, orderBy: { name: "asc" } });
     return rows.map((r) => this.present(r));
+  }
+
+  /** Owner of a station or charger, for checking a station operator only touches their own. Null when it does not exist. */
+  async siteOrgId(siteId: string) {
+    return (await this.db.site.findUnique({ where: { id: siteId }, select: { orgId: true } }))?.orgId ?? null;
+  }
+
+  async chargerOrgId(chargePointId: string) {
+    const c = await this.db.charger.findUnique({ where: { chargePointId }, select: { site: { select: { orgId: true } } } });
+    return c?.site.orgId ?? null;
   }
 
   async get(siteId: string) {
