@@ -9,7 +9,7 @@ import 'charging_session_screen.dart';
 import 'trip_details_screen.dart';
 
 /// Landing page after login: three big choices (a bus ticket, a charge, or buying a charger),
-/// then the user's trips: a running charge (live), upcoming bus tickets, recent charging.
+/// then the user's activity: a running charge (live), upcoming bus tickets, recent charging.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
@@ -51,7 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  /// Charging sessions for "Your trips"; while one is running, refresh it every few seconds.
+  /// Charging sessions for "Your activity"; while one is running, refresh it every few seconds.
   Future<void> _loadCharging() async {
     try {
       final list = await widget.api.recentCharging();
@@ -129,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: widget.onShop,
         ),
         const SizedBox(height: 20),
-        Text('Your trips', style: text.titleMedium),
+        Text('Your activity', style: text.titleMedium),
         const SizedBox(height: 8),
         FutureBuilder<List<BookingSummary>>(
           future: _bookings,
@@ -141,8 +141,8 @@ class _HomeScreenState extends State<HomeScreen> {
             if (bookings.isEmpty && _sessions.isEmpty) {
               return const Card(
                 child: ListTile(
-                  leading: Icon(Icons.event_seat_outlined),
-                  title: Text('No trips or charging yet'),
+                  leading: Icon(Icons.history),
+                  title: Text('No activity yet'),
                   subtitle: Text('Your bus tickets and charging sessions will show here.'),
                 ),
               );

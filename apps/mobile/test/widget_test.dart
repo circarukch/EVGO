@@ -50,7 +50,7 @@ void main() {
     }
     expect(find.text('Want a ticket?'), findsOneWidget);
     expect(find.text('Want to charge your EV?'), findsOneWidget);
-    await scrollTo(tester, 'No trips or charging yet');
+    await scrollTo(tester, 'No activity yet');
   });
 
   testWidgets('books a seat, tops up the shortfall, and shows the ticket and trip', (tester) async {
@@ -115,12 +115,38 @@ void main() {
     await tester.tap(find.text('Wallet'));
     await tester.pumpAndSettle();
     expect(find.text('₹0'), findsOneWidget);
-    await tester.tap(find.text('+ ₹500'));
+    await tester.tap(find.byKey(const Key('topup-50000')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('checkout-card')));
     await tester.pumpAndSettle();
-    expect(find.text('₹500'), findsOneWidget);
+    expect(find.text('+₹500'), findsOneWidget); // history line; the balance and the quick tile both read ₹500
     expect(find.text('Added money to wallet by card'), findsOneWidget);
+  });
+
+  testWidgets('adds a typed amount, with limits checked before paying', (tester) async {
+    await logIn(tester);
+    await tester.tap(find.text('Wallet'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('topup-custom')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('topup-amount-continue')));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter an amount'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('topup-amount')), '5');
+    await tester.tap(find.byKey(const Key('topup-amount-continue')));
+    await tester.pumpAndSettle();
+    expect(find.text('Minimum is ₹10'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('topup-amount')), '200000');
+    await tester.tap(find.byKey(const Key('topup-amount-continue')));
+    await tester.pumpAndSettle();
+    expect(find.text('Maximum is ₹1,00,000 at a time'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('topup-amount')), '750');
+    await tester.tap(find.byKey(const Key('topup-amount-continue')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('checkout-upi')));
+    await tester.pumpAndSettle();
+    expect(find.text('₹750'), findsWidgets);
+    expect(find.text('Added money to wallet by UPI'), findsOneWidget);
   });
 
   testWidgets('books a seat by UPI with no wallet, and refunds back to UPI on cancel', (tester) async {
@@ -291,7 +317,7 @@ void main() {
     await tester.tap(find.byKey(const Key('start-GNT-HUB-01-1')));
     await tester.pumpAndSettle();
     expect(find.text('Pay by UPI'), findsOneWidget);
-    expect(find.text('Hold ₹500 by UPI and start'), findsOneWidget); // 60 kW DC: ₹300 / ₹500 / ₹1000
+    expect(find.text('Hold ₹500 by UPI and start'), findsOneWidget); // 60 kW DC: ₹300 / ₹500 / ₹1,000
     await tester.tap(find.byKey(const Key('pay-upi')));
     await tester.pumpAndSettle();
     expect(find.text('UPI app (test)'), findsOneWidget);
@@ -337,11 +363,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.text('Home'));
     await tester.pump(const Duration(milliseconds: 500));
-    await scrollTo(tester, 'Your trips');
+    await scrollTo(tester, 'Your activity');
     expect(find.byKey(const Key('home-live-charging')), findsOneWidget);
     expect(find.text('Charging now · Guntur EVGO Hub'), findsOneWidget);
     expect(find.text('₹500 held by UPI · tap to stop'), findsOneWidget);
-    expect(find.text('No trips or charging yet'), findsNothing);
+    expect(find.text('No activity yet'), findsNothing);
 
     // Tap it: the live screen, with Stop.
     await tester.tap(find.byKey(const Key('home-live-charging')));
@@ -391,8 +417,8 @@ void main() {
     await logOutFromMenu(tester);
     await logIn(tester, phone: FakeBackend.otherPhone, fresh: false);
     expect(api.phone, '+91${FakeBackend.otherPhone}');
-    await scrollTo(tester, 'No trips or charging yet');
-    expect(find.text('No trips or charging yet'), findsOneWidget);
+    await scrollTo(tester, 'No activity yet');
+    expect(find.text('No activity yet'), findsOneWidget);
     expect(find.text('Recent charging'), findsNothing);
     expect(find.byKey(const Key('recent-s1')), findsNothing);
     await tester.tap(find.text('Wallet'));
@@ -421,7 +447,7 @@ void main() {
     await logIn(tester);
     await tester.tap(find.text('Wallet'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('+ ₹1000'));
+    await tester.tap(find.byKey(const Key('topup-100000')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('checkout-card')));
     await tester.pumpAndSettle();
@@ -446,7 +472,7 @@ void main() {
     expect(find.text('Recent activity'), findsOneWidget);
     expect(find.byKey(const Key('activity-trip-O1aaaaaa-0000')), findsOneWidget);
     expect(find.text('Added money to wallet by card'), findsOneWidget);
-    expect(find.text('+₹1000'), findsOneWidget);
+    expect(find.text('+₹1,000'), findsOneWidget);
     // The ticket payment is shown once, as the trip, not again as a wallet line.
     expect(find.text('Bus ticket, Guntur to Hyderabad'), findsNothing);
 

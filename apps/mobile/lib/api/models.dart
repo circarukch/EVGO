@@ -1,4 +1,25 @@
-String rupees(int paise) => paise % 100 == 0 ? '₹${paise ~/ 100}' : '₹${(paise / 100).toStringAsFixed(2)}';
+/// Paise as rupees with Indian digit grouping: ₹500, ₹1,000, ₹1,00,000, ₹12,345.50.
+String rupees(int paise) {
+  final sign = paise < 0 ? '-' : '';
+  final p = paise.abs();
+  final whole = indianGrouping(p ~/ 100);
+  return p % 100 == 0 ? '$sign₹$whole' : '$sign₹$whole.${(p % 100).toString().padLeft(2, '0')}';
+}
+
+/// 1234567 -> "12,34,567" (last three digits, then pairs).
+String indianGrouping(int n) {
+  final s = n.toString();
+  if (s.length <= 3) return s;
+  final last3 = s.substring(s.length - 3);
+  var rest = s.substring(0, s.length - 3);
+  final parts = <String>[];
+  while (rest.length > 2) {
+    parts.insert(0, rest.substring(rest.length - 2));
+    rest = rest.substring(0, rest.length - 2);
+  }
+  if (rest.isNotEmpty) parts.insert(0, rest);
+  return '${parts.join(',')},$last3';
+}
 
 class TripSummary {
   TripSummary({
@@ -634,20 +655,8 @@ class ChargerProduct {
   String get priceLabel => priceInr == null ? 'Price on quote' : inr(priceInr!);
 }
 
-/// Whole rupees with Indian digit grouping: 1,23,456.
-String inr(int rupees) {
-  final s = rupees.toString();
-  if (s.length <= 3) return '₹$s';
-  final last3 = s.substring(s.length - 3);
-  var rest = s.substring(0, s.length - 3);
-  final parts = <String>[];
-  while (rest.length > 2) {
-    parts.insert(0, rest.substring(rest.length - 2));
-    rest = rest.substring(0, rest.length - 2);
-  }
-  if (rest.isNotEmpty) parts.insert(0, rest);
-  return '₹${parts.join(',')},$last3';
-}
+/// Whole rupees with Indian digit grouping: ₹1,23,456.
+String inr(int rupees) => '₹${indianGrouping(rupees)}';
 
 /// A quote request sent from the shop.
 class ChargerLead {
