@@ -138,4 +138,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Send code'), findsOneWidget);
   });
+
+  testWidgets('tapping the logo goes to Home, from a tab or from the seat screen', (tester) async {
+    await logIn(tester);
+    await tester.tap(find.text('Wallet'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('logo-home')));
+    await tester.pumpAndSettle();
+    expect(find.text('Want a ticket?'), findsOneWidget);
+
+    await tester.tap(find.text('Travel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Search buses'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('06:00 to 11:30'));
+    await tester.pumpAndSettle();
+    expect(find.text('S1'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('logo-home')).last);
+    await tester.pumpAndSettle();
+    expect(find.text('S1'), findsNothing);
+    expect(find.text('Want a ticket?'), findsOneWidget);
+  });
 }

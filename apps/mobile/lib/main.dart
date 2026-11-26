@@ -58,6 +58,12 @@ class _AppShellState extends State<AppShell> {
 
   void _go(int i) => setState(() => _index = i);
 
+  /// Logo tap from any screen: close anything opened on top and show Home.
+  void _goHome() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    _go(0);
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -68,7 +74,7 @@ class _AppShellState extends State<AppShell> {
         onCharge: () => _go(2),
         onWallet: () => _go(3),
       ),
-      TravelScreen(api: widget.api),
+      TravelScreen(api: widget.api, onHome: _goHome),
       ChargeScreen(api: widget.api),
       WalletScreen(api: widget.api, key: ValueKey('wallet-$_index')),
     ];
@@ -77,10 +83,10 @@ class _AppShellState extends State<AppShell> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+              padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
               child: Row(
                 children: [
-                  const EvgoLogo(height: 28),
+                  EvgoLogo(height: 28, onTap: _goHome),
                   const Spacer(),
                   IconButton(
                     tooltip: 'Account',

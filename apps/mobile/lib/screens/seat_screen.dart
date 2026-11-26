@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../api/evgo_api.dart';
 import '../api/models.dart';
+import '../brand.dart';
 
 /// Pick seats, hold them, pay from the wallet, show tickets.
 class SeatScreen extends StatefulWidget {
-  const SeatScreen({super.key, required this.api, required this.trip});
+  const SeatScreen({super.key, required this.api, required this.trip, required this.onHome});
 
   final EvgoApi api;
   final TripSummary trip;
+
+  /// Logo tap: back to Home.
+  final VoidCallback onHome;
 
   @override
   State<SeatScreen> createState() => _SeatScreenState();
@@ -80,7 +84,10 @@ class _SeatScreenState extends State<SeatScreen> {
   Widget build(BuildContext context) {
     final trip = widget.trip;
     return Scaffold(
-      appBar: AppBar(title: Text('${trip.dateLabel} ${trip.departs} · ${trip.operator}')),
+      appBar: AppBar(
+        title: Text('${trip.dateLabel} ${trip.departs} · ${trip.operator}'),
+        actions: [Padding(padding: const EdgeInsets.only(right: 8), child: EvgoLogo(height: 22, onTap: widget.onHome))],
+      ),
       body: _tickets != null ? _ticketsView(context) : _picker(context),
     );
   }

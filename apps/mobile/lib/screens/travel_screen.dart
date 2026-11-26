@@ -5,9 +5,12 @@ import '../api/models.dart';
 import 'seat_screen.dart';
 
 class TravelScreen extends StatefulWidget {
-  const TravelScreen({super.key, required this.api});
+  const TravelScreen({super.key, required this.api, required this.onHome});
 
   final EvgoApi api;
+
+  /// Logo tap on screens opened from here.
+  final VoidCallback onHome;
 
   @override
   State<TravelScreen> createState() => _TravelScreenState();
@@ -61,7 +64,7 @@ class _TravelScreenState extends State<TravelScreen> {
                       Card(
                         child: ListTile(
                           onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute<bool>(builder: (_) => SeatScreen(api: widget.api, trip: t)),
+                            MaterialPageRoute<bool>(builder: (_) => SeatScreen(api: widget.api, trip: t, onHome: widget.onHome)),
                           ),
                           title: Text('${t.dateLabel} ${t.departs} to ${t.arrives} · ${t.busType}'),
                           subtitle: Text(
