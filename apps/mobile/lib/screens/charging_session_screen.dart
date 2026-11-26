@@ -6,7 +6,7 @@ import '../api/evgo_api.dart';
 import '../api/models.dart';
 import '../brand.dart';
 
-/// Live charging: energy, cost and power refresh every few seconds; Stop bills the wallet.
+/// Live charging: energy, cost and power refresh every few seconds; Stop takes payment (UPI hold or wallet).
 class ChargingSessionScreen extends StatefulWidget {
   const ChargingSessionScreen({super.key, required this.api, required this.initial, this.refreshEvery = const Duration(seconds: 3)});
 
@@ -129,6 +129,21 @@ class _ChargingSessionScreenState extends State<ChargingSessionScreen> {
           _Row('Price', '₹${_s.perKwhInr.toStringAsFixed(0)} per kWh'),
           if (active) _Row('Power now', '${_s.powerKw.toStringAsFixed(1)} kW'),
           _Row('Started', _elapsed() == '0 min' ? 'Just now' : '${_elapsed()} ago'),
+          if (_s.paidByUpi && active) _Row('Held by UPI', '${rupees(_s.blockedPaise ?? 0)}, stops by itself at this'),
+          if (_s.paidByUpi && !active && _s.paymentStatus == 'CAPTURE_FAILED')
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text('We could not collect the payment yet. We will retry; nothing more is needed from you.'),
+            )
+          else if (_s.paidByUpi && !active) ...[
+            _Row('Paid by UPI', rupees(_s.capturedPaise ?? _s.costPaise)),
+            _Row('Released to your bank', rupees(_s.releasedPaise ?? 0)),
+          ],
+          if (!active && _s.stopReason == 'AmountLimit')
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text('Stopped because the session used the amount you held. Start again to charge more.'),
+            ),
           if (!active && _s.stopReason == 'WalletLimit')
             const Padding(
               padding: EdgeInsets.only(top: 8),

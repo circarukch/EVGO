@@ -56,6 +56,11 @@ class EvgoApi {
     return _decode(res);
   }
 
+  Future<dynamic> _delete(String path) async {
+    final res = await _client.delete(Uri.parse('$baseUrl$path'), headers: _headers);
+    return _decode(res);
+  }
+
   dynamic _decode(http.Response res) {
     final data = res.body.isEmpty ? null : jsonDecode(res.body);
     if (res.statusCode == 401 && token != null) {
@@ -105,6 +110,28 @@ class EvgoApi {
   Future<ChargingSessionView> startCharging(String chargePointId, int connectorId) async => ChargingSessionView.fromJson(
       await _post('/charging/sessions', {'chargePointId': chargePointId, 'connectorId': connectorId}) as Map<String, dynamic>);
 
+  /// Pay by UPI, no wallet: ask the customer's bank to block [amountPaise] for this session.
+  Future<UpiBlockView> createUpiBlock(String chargePointId, int connectorId, int amountPaise) async => UpiBlockView.fromJson(
+      await _post('/charging/upi-blocks', {'chargePointId': chargePointId, 'connectorId': connectorId, 'amountPaise': amountPaise})
+          as Map<String, dynamic>);
+
+  /// Call after the customer approves in their UPI app. Session is null while approval is pending.
+  Future<(UpiBlockView, ChargingSessionView?)> startWithUpiBlock(String blockId) async {
+    final r = await _post('/charging/upi-blocks/$blockId/start') as Map<String, dynamic>;
+    final s = r['session'];
+    return (
+      UpiBlockView.fromJson(r['block'] as Map<String, dynamic>),
+      s == null ? null : ChargingSessionView.fromJson(s as Map<String, dynamic>)
+    );
+  }
+
+  Future<UpiBlockView> cancelUpiBlock(String blockId) async =>
+      UpiBlockView.fromJson(await _delete('/charging/upi-blocks/$blockId') as Map<String, dynamic>);
+
+  /// Development and demo only: stands in for the customer's UPI app.
+  Future<void> mockUpiDecision(String blockId, {required bool approve}) async =>
+      _post('/charging/upi-blocks/$blockId/${approve ? 'mock-approve' : 'mock-decline'}');
+
   Future<ChargingSessionView?> activeCharging() async {
     final r = await _get('/charging/sessions/active') as Map<String, dynamic>;
     final s = r['session'];
@@ -121,9 +148,8 @@ class EvgoApi {
 
   Future<SeatMap> seats(String tripId) async {
     final r = await _get('/trips/$tripId/seats') as Map<String, dynamic>;
-    final tiers = [
-      for (final t in (r['cancellationPolicy'] as List?) ?? const []) RefundTier.fromJson(t as Map<String, dynamic>)
-    ]..sort((a, b) => b.minHoursBefore.compareTo(a.minHoursBefore));
+    final tiers = [for (final t in (r['cancellationPolicy'] as List?) ?? const []) RefundTier.fromJson(t as Map<String, dynamic>)]
+      ..sort((a, b) => b.minHoursBefore.compareTo(a.minHoursBefore));
     return SeatMap(
       seats: (r['seats'] as List).map((j) => SeatInfo.fromJson(j as Map<String, dynamic>)).toList(),
       refundTiers: tiers,
@@ -134,7 +160,9 @@ class EvgoApi {
   Future<String> holdSeats(String tripId, List<String> seatLabels, String passengerName) async {
     final r = await _post('/bookings', {
       'tripId': tripId,
-      'seats': [for (final s in seatLabels) {'seatLabel': s, 'passengerName': passengerName}],
+      'seats': [
+        for (final s in seatLabels) {'seatLabel': s, 'passengerName': passengerName}
+      ],
     }) as Map<String, dynamic>;
     return r['orderId'] as String;
   }

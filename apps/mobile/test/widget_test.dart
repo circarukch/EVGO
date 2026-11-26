@@ -165,6 +165,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('1 of 1 free'), findsOneWidget);
     await tester.tap(find.byKey(const Key('start-GNT-HUB-01-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('pay-wallet')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('0.00 kWh'), findsOneWidget);
@@ -191,10 +193,67 @@ void main() {
     tester.widget<GestureDetector>(find.byKey(const Key('pin-gnt-hub'))).onTap!();
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('start-GNT-HUB-01-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('pay-wallet')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Keep at least ₹100 in your wallet to start charging'), findsOneWidget);
     expect(find.text('Add ₹100'), findsOneWidget);
+  });
+
+  Future<void> startByUpi(WidgetTester tester) async {
+    await logIn(tester); // wallet is empty: UPI needs none
+    await tester.tap(find.text('Charge'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('List'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Guntur EVGO Hub'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('start-GNT-HUB-01-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Pay by UPI'), findsOneWidget);
+    expect(find.text('Hold ₹500 by UPI and start'), findsOneWidget); // 60 kW DC: ₹300 / ₹500 / ₹1000
+    await tester.tap(find.byKey(const Key('pay-upi')));
+    await tester.pumpAndSettle();
+    expect(find.text('UPI app (test)'), findsOneWidget);
+  }
+
+  testWidgets('pays by UPI with no wallet: holds ₹500, charges, pays what was used and releases the rest', (tester) async {
+    await startByUpi(tester);
+    await tester.tap(find.byKey(const Key('mock-upi-approve')));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    expect(find.text('Charging'), findsWidgets);
+    expect(find.text('Held by UPI'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
+    expect(find.text('1.50 kWh'), findsOneWidget);
+
+    await tester.tap(find.text('Stop charging'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.widgetWithText(FilledButton, 'Stop'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Charging done'), findsOneWidget);
+    expect(find.text('Paid by UPI'), findsOneWidget);
+    expect(find.text('Released to your bank'), findsOneWidget);
+    expect(find.text('₹473'), findsOneWidget); // ₹500 held − ₹27 used
+    expect(backend.balancePaise, 0);
+  });
+
+  testWidgets('a declined UPI request does not start charging', (tester) async {
+    await startByUpi(tester);
+    await tester.tap(find.byKey(const Key('mock-upi-decline')));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    expect(find.text('Charging did not start'), findsOneWidget);
+    expect(find.text('The payment was not approved in your UPI app'), findsOneWidget);
+    expect(find.text('No money was taken.'), findsOneWidget);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect(backend.session, isNull);
   });
 
   test('reads charger codes typed or scanned', () {

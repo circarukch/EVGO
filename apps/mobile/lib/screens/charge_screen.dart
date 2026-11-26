@@ -4,6 +4,7 @@ import '../api/evgo_api.dart';
 import '../api/models.dart';
 import '../brand.dart';
 import 'charging_session_screen.dart';
+import 'pay_sheet.dart';
 import 'station_map.dart';
 import 'station_sheet.dart';
 
@@ -66,7 +67,31 @@ class _ChargeScreenState extends State<ChargeScreen> {
     _reload();
   }
 
-  Future<void> _start(String chargePointId, int connectorId) async {
+  /// Ask how to pay (UPI by default, wallet optional), then start.
+  Future<void> _start(String chargePointId, int connectorId, {double? powerKw, String? title}) async {
+    final choice = await showPaySheet(context, title: title ?? '$chargePointId #$connectorId', powerKw: powerKw);
+    if (!mounted || choice == null) return;
+    switch (choice) {
+      case PayByWallet():
+        await _startFromWallet(chargePointId, connectorId);
+      case PayByUpi(:final amountPaise):
+        await _startWithUpi(chargePointId, connectorId, amountPaise);
+    }
+  }
+
+  Future<void> _startWithUpi(String chargePointId, int connectorId, int amountPaise) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final block = await widget.api.createUpiBlock(chargePointId, connectorId, amountPaise);
+      if (!mounted) return;
+      final session = await approveAndStart(context, widget.api, block);
+      if (session != null) await _openSession(session);
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  Future<void> _startFromWallet(String chargePointId, int connectorId) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final s = await widget.api.startCharging(chargePointId, connectorId);
@@ -81,7 +106,7 @@ class _ChargeScreenState extends State<ChargeScreen> {
                 label: 'Add ${rupees(shortfall)}',
                 onPressed: () async {
                   await widget.api.addMoney(shortfall);
-                  await _start(chargePointId, connectorId);
+                  await _startFromWallet(chargePointId, connectorId);
                 },
               ),
       ));
@@ -293,7 +318,9 @@ class _ChargeScreenState extends State<ChargeScreen> {
         ]),
       );
     }
-    void open(Station s) => showStationSheet(context, s, onStart: (c, k) => _start(c.id, k.id));
+    void open(Station s) => showStationSheet(context, s,
+        onStart: (c, k) =>
+            _start(c.id, k.id, powerKw: k.powerKw, title: '${s.place.name} · ${plugLabel(k.type)} ${k.current} ${kwLabel(k.powerKw)}'));
     if (_showMap) return StationMap(stations: stations, onTap: open);
     return ListView(
       padding: const EdgeInsets.only(top: 56, bottom: 88),

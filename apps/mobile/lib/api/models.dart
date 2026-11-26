@@ -265,6 +265,11 @@ class ChargingSessionView {
     required this.costPaise,
     this.stopReason,
     this.balancePaise,
+    this.paymentMethod = 'wallet',
+    this.blockedPaise,
+    this.capturedPaise,
+    this.releasedPaise,
+    this.paymentStatus,
   });
 
   factory ChargingSessionView.fromJson(Map<String, dynamic> j) => ChargingSessionView(
@@ -281,6 +286,11 @@ class ChargingSessionView {
         costPaise: (j['costPaise'] as num).toInt(),
         stopReason: j['stopReason'] as String?,
         balancePaise: (j['balancePaise'] as num?)?.toInt(),
+        paymentMethod: (j['payment'] as Map<String, dynamic>?)?['method'] as String? ?? 'wallet',
+        blockedPaise: ((j['payment'] as Map<String, dynamic>?)?['blockedPaise'] as num?)?.toInt(),
+        capturedPaise: ((j['payment'] as Map<String, dynamic>?)?['capturedPaise'] as num?)?.toInt(),
+        releasedPaise: ((j['payment'] as Map<String, dynamic>?)?['releasedPaise'] as num?)?.toInt(),
+        paymentStatus: (j['payment'] as Map<String, dynamic>?)?['status'] as String?,
       );
 
   final String id;
@@ -296,8 +306,44 @@ class ChargingSessionView {
   final int costPaise;
   final String? stopReason;
   final int? balancePaise;
+  final String paymentMethod; // wallet or upi
+  final int? blockedPaise;
+  final int? capturedPaise;
+  final int? releasedPaise;
+  final String? paymentStatus;
 
   bool get isActive => status == 'ACTIVE';
+  bool get paidByUpi => paymentMethod == 'upi';
+}
+
+/// Money blocked in the customer's bank through their UPI app, for one charging session.
+class UpiBlockView {
+  UpiBlockView({required this.id, required this.status, required this.gateway, required this.amountPaise, this.upiIntentUrl});
+
+  factory UpiBlockView.fromJson(Map<String, dynamic> j) => UpiBlockView(
+        id: j['id'] as String,
+        status: j['status'] as String,
+        gateway: j['gateway'] as String? ?? '',
+        amountPaise: (j['amountPaise'] as num).toInt(),
+        upiIntentUrl: j['upiIntentUrl'] as String?,
+      );
+
+  final String id;
+  final String status;
+  final String gateway;
+  final int amountPaise;
+  final String? upiIntentUrl;
+
+  bool get isPending => status == 'PENDING';
+  bool get isMock => gateway == 'mock';
+}
+
+/// Amounts to offer for a UPI block, by the plug's power: small for scooters, larger for fast DC.
+List<int> suggestedBlocksPaise(double? powerKw) {
+  if (powerKw == null) return const [20000, 50000, 100000];
+  if (powerKw <= 22) return const [20000, 30000, 50000];
+  if (powerKw < 100) return const [30000, 50000, 100000];
+  return const [100000, 200000, 500000];
 }
 
 class RefundTier {
