@@ -99,13 +99,59 @@ void main() {
     await tester.tap(find.text('Charge'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('pin-gnt-hub')), findsOneWidget);
-    expect(find.byTooltip('Hyderabad LB Nagar: offline'), findsOneWidget); // its only plug is faulted
-    expect(find.byTooltip('Guntur EVGO Hub: 1 of 1 free'), findsOneWidget);
+    expect(find.byTooltip('Hyderabad LB Nagar: offline · DC up to 60 kW'), findsOneWidget); // its only plug is faulted
+    expect(find.byTooltip('Guntur EVGO Hub: 1 of 1 free · DC up to 60 kW'), findsOneWidget);
+    expect(find.byTooltip('Vijayawada Benz Circle: 1 of 1 free · AC up to 22 kW'), findsOneWidget);
+    // Power labels under the pins; a label that would cover a nearby pin waits until the user zooms in.
+    expect(find.text('240 kW DC'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'^\d+ kW (AC|DC)')), findsWidgets);
     expect(find.byType(ChoiceChip), findsNWidgets(6));
     await tester.tap(find.text('List'));
     await tester.pumpAndSettle();
     expect(find.text('Guntur EVGO Hub'), findsOneWidget);
-    expect(find.text('1 free'), findsOneWidget);
+    expect(find.text('Guntur · DC up to 60 kW · from ₹18/kWh'), findsOneWidget);
+    expect(find.text('Vijayawada · AC up to 22 kW · from ₹15/kWh'), findsOneWidget);
+  });
+
+  testWidgets('filters chargers by AC/DC and by power', (tester) async {
+    await logIn(tester);
+    await tester.tap(find.text('Charge'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('List'));
+    await tester.pumpAndSettle();
+    expect(find.text('Suryapet Bus Depot'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('filter-current')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('AC chargers').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Vijayawada Benz Circle'), findsOneWidget);
+    expect(find.text('Guntur EVGO Hub'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('filter-current')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DC fast chargers').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Vijayawada Benz Circle'), findsNothing);
+    expect(find.text('Guntur EVGO Hub'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('filter-power')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('120 kW and above').last);
+    await tester.pumpAndSettle();
+    expect(find.text('120 kW+'), findsOneWidget);
+    expect(find.text('Suryapet Bus Depot'), findsOneWidget);
+    expect(find.text('Guntur EVGO Hub'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('filter-current')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('AC chargers').last);
+    await tester.pumpAndSettle();
+    expect(find.text('No chargers match these filters yet.'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('clear-filters')));
+    await tester.pumpAndSettle();
+    expect(find.text('Vijayawada Benz Circle'), findsOneWidget);
+    expect(find.text('Any kW'), findsOneWidget);
   });
 
   testWidgets('starts charging from the station sheet, watches it live, stops and sees the bill', (tester) async {

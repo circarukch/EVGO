@@ -92,6 +92,16 @@ class FakeBackend {
           'place': {'id': 'hyd-lbn', 'name': 'Hyderabad LB Nagar', 'city': 'Hyderabad', 'lat': 17.3457, 'lng': 78.5522},
           'connectors': [{'id': 1, 'type': 'CCS2', 'powerKw': 60, 'status': 'Faulted'}],
         },
+        {
+          'id': 'VJW-BNZ-01', 'operator': 'EVGO', 'pricePerKwhInr': 15, 'segments': ['4W'],
+          'place': {'id': 'vjw-bnz', 'name': 'Vijayawada Benz Circle', 'city': 'Vijayawada', 'lat': 16.4985, 'lng': 80.6563},
+          'connectors': [{'id': 1, 'type': 'Type2', 'powerKw': 22, 'status': 'Available'}],
+        },
+        {
+          'id': 'SRY-DEP-01', 'operator': 'EVGO', 'pricePerKwhInr': 20, 'segments': ['BUS'],
+          'place': {'id': 'sry-dep', 'name': 'Suryapet Bus Depot', 'city': 'Suryapet', 'lat': 17.1405, 'lng': 79.6231},
+          'connectors': [{'id': 1, 'type': 'CCS2', 'powerKw': 240, 'status': 'Available'}],
+        },
       ]);
     }
     if (path == '/charging/sessions' && req.method == 'POST') {

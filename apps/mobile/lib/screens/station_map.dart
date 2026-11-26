@@ -57,29 +57,58 @@ class StationMap extends StatelessWidget {
             Polyline(points: _corridor, strokeWidth: 5, color: Colors.white),
             Polyline(points: _corridor, strokeWidth: 2, color: const Color(0xFFB8CCC4))
           ]),
-        MarkerLayer(
-          markers: [
+        Builder(builder: (context) {
+          final camera = MapCamera.of(context);
+          final placed = [
             for (final s in stations)
-              if (s.place.lat != null && s.place.lng != null)
+              if (s.place.lat != null && s.place.lng != null) (s, LatLng(s.place.lat!, s.place.lng!))
+          ];
+          final showLabel = _labelsThatFit([for (final p in placed) camera.latLngToScreenOffset(p.$2)]);
+          return MarkerLayer(
+            markers: [
+              for (var i = 0; i < placed.length; i++)
                 Marker(
-                  point: LatLng(s.place.lat!, s.place.lng!),
-                  width: 40,
-                  height: 47,
+                  point: placed[i].$2,
+                  width: 84,
+                  height: 66,
                   alignment: Alignment.topCenter,
-                  child: _Pin(station: s, onTap: () => onTap(s)),
+                  child: _Pin(station: placed[i].$1, showLabel: showLabel[i], onTap: () => onTap(placed[i].$1)),
                 ),
-          ],
-        ),
+            ],
+          );
+        }),
         if (mapTilesEnabled) const RichAttributionWidget(attributions: [TextSourceAttribution('OpenStreetMap contributors')]),
       ],
     );
   }
 }
 
+/// Which pins can show their power label without covering another pin or label.
+/// Stations come busiest-first, so the most useful ones keep their label; zooming in shows the rest.
+List<bool> _labelsThatFit(List<Offset> points) {
+  Rect circle(Offset p) => Rect.fromLTWH(p.dx - 20, p.dy - 66, 40, 47);
+  Rect label(Offset p) => Rect.fromLTWH(p.dx - 40, p.dy - 19, 80, 19);
+  final taken = <Rect>[];
+  return [
+    for (var i = 0; i < points.length; i++)
+      () {
+        final r = label(points[i]);
+        final hit = taken.any(r.overlaps) ||
+            [
+              for (var j = 0; j < points.length; j++)
+                if (j != i) circle(points[j])
+            ].any(r.overlaps);
+        if (!hit) taken.add(r);
+        return !hit;
+      }(),
+  ];
+}
+
 class _Pin extends StatelessWidget {
-  const _Pin({required this.station, required this.onTap});
+  const _Pin({required this.station, required this.onTap, this.showLabel = true});
 
   final Station station;
+  final bool showLabel;
   final VoidCallback onTap;
 
   @override
@@ -93,7 +122,7 @@ class _Pin extends StatelessWidget {
         children: [
           Tooltip(
             message:
-                '${station.place.name}: ${station.allOutOfService ? 'offline' : '${station.available} of ${station.connectors.length} free'}',
+                '${station.place.name}: ${station.allOutOfService ? 'offline' : '${station.available} of ${station.connectors.length} free'} · ${station.powerSummary}',
             child: Container(
               width: 40,
               height: 40,
@@ -110,6 +139,18 @@ class _Pin extends StatelessWidget {
             ),
           ),
           CustomPaint(size: const Size(12, 7), painter: _Tail(color)),
+          if (showLabel)
+            Container(
+              margin: const EdgeInsets.only(top: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 2)],
+              ),
+              child: Text(station.powerLabel,
+                  maxLines: 1, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF1F2A30))),
+            ),
         ],
       ),
     );

@@ -47,6 +47,8 @@ Future<void> showStationSheet(
                       '${station.place.city} · ${station.chargers.map((c) => c.operator).toSet().join(', ')}',
                       style: Theme.of(sheet).textTheme.bodyMedium,
                     ),
+                    Text(station.powerSummary,
+                        style: Theme.of(sheet).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600, color: Brand.blue)),
                   ],
                 ),
               ),
@@ -74,9 +76,9 @@ Future<void> showStationSheet(
                 leading: CircleAvatar(
                   backgroundColor: (k.isAvailable ? Brand.green : Colors.grey).withValues(alpha: 0.15),
                   foregroundColor: k.isAvailable ? Brand.green : Colors.grey,
-                  child: const Icon(Icons.ev_station),
+                  child: Text(k.current, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                 ),
-                title: Text('${plugLabel(k.type)} · ${k.powerKw.toStringAsFixed(k.powerKw % 1 == 0 ? 0 : 1)} kW'),
+                title: Text('${plugLabel(k.type)} · ${k.current} · ${kwLabel(k.powerKw)}'),
                 subtitle: Text(
                   '${charger.pricePerKwhInr == null ? '' : '₹${charger.pricePerKwhInr!.toStringAsFixed(0)}/kWh · '}'
                   '${statusLabel(k.status)} · ${charger.id} #${k.id}',

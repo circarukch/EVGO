@@ -21,6 +21,9 @@ class _ChargeScreenState extends State<ChargeScreen> {
   static const segments = {'2W': 'Scooter', '3W': 'Auto', '4W': 'Car', 'BUS': 'Bus', 'TRUCK': 'Truck'};
   String? _segment;
   String? _plug;
+  String? _current; // 'AC' or 'DC'
+  double? _minKw;
+  static const powerSteps = <double>[7, 30, 60, 120, 180, 240];
   bool _showMap = true;
   late Future<List<ChargerSummary>> _chargers = widget.api.searchChargers();
   ChargingSessionView? _active;
@@ -47,9 +50,11 @@ class _ChargeScreenState extends State<ChargeScreen> {
   }
 
   List<Station> _stations(List<ChargerSummary> all) {
+    bool keep(ConnectorInfo k) =>
+        (_plug == null || k.type == _plug) && (_current == null || k.current == _current) && (_minKw == null || k.powerKw >= _minKw!);
     final filtered = [
       for (final c in all)
-        if (_plug == null || c.connectors.any((k) => k.type == _plug)) c
+        if (c.connectors.any(keep)) c.withConnectors(c.connectors.where(keep).toList())
     ];
     final list = Station.group(filtered);
     list.sort((a, b) => b.available.compareTo(a.available));
@@ -179,24 +184,49 @@ class _ChargeScreenState extends State<ChargeScreen> {
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
               child: Row(
                 children: [
-                  PopupMenuButton<String?>(
-                    tooltip: 'Plug type',
-                    onSelected: (v) => setState(() => _plug = v == '' ? null : v),
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(value: '', child: Text('Any plug')),
-                      for (final p in plugs) PopupMenuItem(value: p, child: Text(plugLabel(p))),
-                    ],
-                    child: Chip(avatar: const Icon(Icons.power, size: 18), label: Text(_plug == null ? 'Any plug' : plugLabel(_plug!))),
-                  ),
-                  const Spacer(),
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: true, icon: Icon(Icons.map_outlined), label: Text('Map')),
-                      ButtonSegment(value: false, icon: Icon(Icons.list), label: Text('List')),
-                    ],
-                    selected: {_showMap},
-                    showSelectedIcon: false,
-                    onSelectionChanged: (v) => setState(() => _showMap = v.first),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          PopupMenuButton<String>(
+                            key: const Key('filter-current'),
+                            tooltip: 'AC or DC',
+                            onSelected: (v) => setState(() => _current = v == '' ? null : v),
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(value: '', child: Text('AC and DC')),
+                              PopupMenuItem(value: 'DC', child: Text('DC fast chargers')),
+                              PopupMenuItem(value: 'AC', child: Text('AC chargers')),
+                            ],
+                            child: _FilterChip(icon: Icons.bolt, label: _current ?? 'AC / DC', active: _current != null),
+                          ),
+                          const SizedBox(width: 6),
+                          PopupMenuButton<double>(
+                            key: const Key('filter-power'),
+                            tooltip: 'Charger power',
+                            onSelected: (v) => setState(() => _minKw = v == 0 ? null : v),
+                            itemBuilder: (_) => [
+                              const PopupMenuItem(value: 0, child: Text('Any power')),
+                              for (final kw in powerSteps) PopupMenuItem(value: kw, child: Text('${kwLabel(kw)} and above')),
+                            ],
+                            child: _FilterChip(
+                                icon: Icons.speed, label: _minKw == null ? 'Any kW' : '${kwLabel(_minKw!)}+', active: _minKw != null),
+                          ),
+                          const SizedBox(width: 6),
+                          PopupMenuButton<String?>(
+                            key: const Key('filter-plug'),
+                            tooltip: 'Plug type',
+                            onSelected: (v) => setState(() => _plug = v == '' ? null : v),
+                            itemBuilder: (_) => [
+                              const PopupMenuItem(value: '', child: Text('Any plug')),
+                              for (final p in plugs) PopupMenuItem(value: p, child: Text('${plugLabel(p)} (${isDcPlug(p) ? 'DC' : 'AC'})')),
+                            ],
+                            child: _FilterChip(
+                                icon: Icons.power, label: _plug == null ? 'Any plug' : plugLabel(_plug!), active: _plug != null),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -205,6 +235,24 @@ class _ChargeScreenState extends State<ChargeScreen> {
               child: Stack(
                 children: [
                   Positioned.fill(child: _body(snap, stations)),
+                  Positioned(
+                    top: 8,
+                    right: 12,
+                    child: Material(
+                      color: Colors.white,
+                      elevation: 2,
+                      shape: const StadiumBorder(),
+                      child: SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment(value: true, icon: Icon(Icons.map_outlined), label: Text('Map')),
+                          ButtonSegment(value: false, icon: Icon(Icons.list), label: Text('List')),
+                        ],
+                        selected: {_showMap},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (v) => setState(() => _showMap = v.first),
+                      ),
+                    ),
+                  ),
                   Positioned(
                     right: 16,
                     bottom: 16,
@@ -229,11 +277,26 @@ class _ChargeScreenState extends State<ChargeScreen> {
   Widget _body(AsyncSnapshot<List<ChargerSummary>> snap, List<Station> stations) {
     if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
     if (snap.hasError) return Center(child: Text('Could not load chargers: ${snap.error}'));
-    if (stations.isEmpty) return const Center(child: Text('No public chargers for this filter yet.'));
+    if (stations.isEmpty) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('No chargers match these filters yet.'),
+          TextButton(
+            key: const Key('clear-filters'),
+            onPressed: () => setState(() {
+              _plug = null;
+              _current = null;
+              _minKw = null;
+            }),
+            child: const Text('Clear filters'),
+          ),
+        ]),
+      );
+    }
     void open(Station s) => showStationSheet(context, s, onStart: (c, k) => _start(c.id, k.id));
     if (_showMap) return StationMap(stations: stations, onTap: open);
     return ListView(
-      padding: const EdgeInsets.only(bottom: 88),
+      padding: const EdgeInsets.only(top: 56, bottom: 88),
       children: [
         for (final s in stations)
           ListTile(
@@ -241,7 +304,7 @@ class _ChargeScreenState extends State<ChargeScreen> {
             leading: CircleAvatar(backgroundColor: stationColor(s), foregroundColor: Colors.white, child: const Icon(Icons.ev_station)),
             title: Text(s.place.name),
             subtitle: Text(
-              '${s.place.city} · up to ${s.maxPowerKw.toStringAsFixed(0)} kW'
+              '${s.place.city} · ${s.powerSummary}'
               '${s.fromPricePerKwh == null ? '' : ' · from ₹${s.fromPricePerKwh!.toStringAsFixed(0)}/kWh'}',
             ),
             trailing: Text(s.allOutOfService ? 'Offline' : '${s.available} free',
@@ -250,6 +313,21 @@ class _ChargeScreenState extends State<ChargeScreen> {
       ],
     );
   }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({required this.icon, required this.label, required this.active});
+  final IconData icon;
+  final String label;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) => Chip(
+        avatar: Icon(icon, size: 18, color: active ? Colors.white : null),
+        label: Text(label, style: TextStyle(color: active ? Colors.white : null, fontWeight: active ? FontWeight.w700 : null)),
+        backgroundColor: active ? Brand.blue : null,
+        side: active ? BorderSide.none : null,
+      );
 }
 
 /// "GNT-HUB-01-1", "GNT-HUB-01 #1", "GNT-HUB-01/1" or the QR payload "EVGO:GNT-HUB-01:1" → (charger, connector).

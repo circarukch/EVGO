@@ -152,6 +152,11 @@ class ChargerSummary {
   final List<String> segments;
 
   String get placeName => place.name;
+
+  /// The same charger showing only some of its plugs (used by the filters).
+  ChargerSummary withConnectors(List<ConnectorInfo> only) =>
+      ChargerSummary(id: id, operator: operator, place: place, connectors: only, pricePerKwhInr: pricePerKwhInr, segments: segments);
+
   int get availableCount => connectors.where((c) => c.isAvailable).length;
 }
 
@@ -190,7 +195,19 @@ class ConnectorInfo {
 
   bool get isAvailable => status == 'Available';
   bool get isOutOfService => status == 'Faulted' || status == 'Unavailable';
+
+  /// DC (fast) or AC, from the plug: CCS2, GB/T, Bharat DC-001, LECCS and CHAdeMO are DC; Type 2 and LEV AC are AC.
+  bool get isDc => isDcPlug(type);
+  String get current => isDc ? 'DC' : 'AC';
 }
+
+bool isDcPlug(String type) {
+  final t = type.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+  return t.contains('DC') || const {'CCS1', 'CCS2', 'GBT', 'LECCS', 'CHADEMO'}.contains(t);
+}
+
+/// "60 kW", "3.3 kW".
+String kwLabel(double kw) => '${kw.toStringAsFixed(kw % 1 == 0 ? 0 : 1)} kW';
 
 /// Chargers grouped by the place they stand at: one pin on the map.
 class Station {
@@ -203,6 +220,18 @@ class Station {
   int get available => connectors.where((c) => c.isAvailable).length;
   bool get allOutOfService => connectors.every((c) => c.isOutOfService);
   double get maxPowerKw => connectors.fold(0, (m, c) => c.powerKw > m ? c.powerKw : m);
+  bool get hasDc => connectors.any((c) => c.isDc);
+  bool get hasAc => connectors.any((c) => !c.isDc);
+
+  /// Short power line for pins: "120 kW DC", "22 kW AC", or "60 kW AC/DC".
+  String get powerLabel => '${kwLabel(maxPowerKw)} ${hasDc && hasAc ? 'AC/DC' : hasDc ? 'DC' : 'AC'}';
+
+  /// "DC up to 60 kW · AC up to 22 kW".
+  String get powerSummary {
+    double top(bool dc) => connectors.where((c) => c.isDc == dc).fold(0, (m, c) => c.powerKw > m ? c.powerKw : m);
+    return [if (hasDc) 'DC up to ${kwLabel(top(true))}', if (hasAc) 'AC up to ${kwLabel(top(false))}'].join(' · ');
+  }
+
   double? get fromPricePerKwh {
     final prices = [
       for (final c in chargers)
