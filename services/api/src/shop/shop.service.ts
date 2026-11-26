@@ -75,7 +75,7 @@ export function leadView(l: ChargerLead & { product?: ChargerProduct | null }) {
   };
 }
 
-/** "Need a charger?": a catalogue of AC and DC chargers, and quote requests (enquiry only, no online purchase yet). */
+/** "Want a charger?": a catalogue of AC and DC chargers, and quote requests (enquiry only, no online purchase yet). */
 @Injectable()
 export class ShopService {
   constructor(private readonly db: PrismaService) {}

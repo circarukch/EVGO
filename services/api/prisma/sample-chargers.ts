@@ -1,5 +1,5 @@
 /**
- * SAMPLE charger catalogue for the "Need a charger?" shop. Names, prices and specs are
+ * SAMPLE charger catalogue for the "Want a charger?" shop. Names, prices and specs are
  * placeholders, not real offers: replace them from the operator console with real products.
  */
 export const SAMPLE_CHARGERS = [

@@ -120,7 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 12),
         _ChoiceCard(
           key: const Key('choice-shop'),
-          title: 'Need a charger?',
+          title: 'Want a charger?',
           subtitle: 'Buy an AC or DC charger for your home, building, business or fleet. Installation available.',
           action: 'Shop chargers',
           icon: Icons.ev_station,

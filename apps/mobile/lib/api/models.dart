@@ -574,7 +574,7 @@ String paymentMethodLabel(String? method) => switch (method) {
       _ => method.toUpperCase(),
     };
 
-/// A charger for sale in the "Need a charger?" shop. [priceInr] is null when the price is on quote (most DC units).
+/// A charger for sale in the "Want a charger?" shop. [priceInr] is null when the price is on quote (most DC units).
 class ChargerProduct {
   ChargerProduct({
     required this.id,

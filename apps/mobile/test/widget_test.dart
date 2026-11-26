@@ -507,9 +507,9 @@ void main() {
     expect(find.byKey(const Key('pin-gnt-hub')), findsOneWidget);
   });
 
-  testWidgets('Need a charger? lists AC and DC chargers, filters them, and sends a quote request', (tester) async {
+  testWidgets('Want a charger? lists AC and DC chargers, filters them, and sends a quote request', (tester) async {
     await logIn(tester);
-    await scrollTo(tester, 'Need a charger?');
+    await scrollTo(tester, 'Want a charger?');
     await tester.tap(find.byKey(const Key('choice-shop')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('shop-product-smp-ac-7')), findsOneWidget);

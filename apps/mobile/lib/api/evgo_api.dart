@@ -223,7 +223,7 @@ class EvgoApi {
     return r['status'] as String;
   }
 
-  // ---- Need a charger? shop ----
+  // ---- Want a charger? shop ----
 
   /// Chargers for sale. [current] is AC or DC; kW bounds are inclusive.
   Future<List<ChargerProduct>> shopChargers({String? current, double? minKw, double? maxKw}) async {

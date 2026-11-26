@@ -4,7 +4,7 @@ import { createApp, db, login } from "./helpers";
 
 const ADMIN = { "x-admin-key": "dev-admin-key" };
 
-describe("Need a charger? shop", () => {
+describe("Want a charger? shop", () => {
   let app: INestApplication;
   const http = () => app.getHttpServer();
   const as = (token: string) => ({ Authorization: `Bearer ${token}` });

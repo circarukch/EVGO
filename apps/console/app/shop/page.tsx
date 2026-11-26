@@ -18,7 +18,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
         </div>
       </div>
       <p>
-        Chargers customers see under <b>Need a charger?</b> in the app. Customers ask for a quote; there is no online payment.
+        Chargers customers see under <b>Want a charger?</b> in the app. Customers ask for a quote; there is no online payment.
       </p>
       {saved && <p className="ok">Saved.</p>}
       {samples > 0 && (

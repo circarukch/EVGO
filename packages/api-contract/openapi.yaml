@@ -348,7 +348,7 @@ paths:
         "401": { description: Bad signature }
   /shop/chargers:
     get:
-      summary: Need a charger? catalogue of AC and DC chargers for sale (active products only)
+      summary: Want a charger? catalogue of AC and DC chargers for sale (active products only)
       parameters:
         - { name: current, in: query, schema: { type: string, enum: [AC, DC] } }
         - { name: minKw, in: query, schema: { type: number } }

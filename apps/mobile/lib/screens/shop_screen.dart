@@ -21,7 +21,7 @@ const _bands = [
   _Band('ultra', '180 kW and above', 180, null),
 ];
 
-/// "Need a charger?": AC and DC chargers for sale. Enquiry only: customers ask for a quote and the team calls back.
+/// "Want a charger?": AC and DC chargers for sale. Enquiry only: customers ask for a quote and the team calls back.
 class ShopScreen extends StatefulWidget {
   const ShopScreen({super.key, required this.api});
 
@@ -65,7 +65,7 @@ class _ShopScreenState extends State<ShopScreen> {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Need a charger?')),
+      appBar: AppBar(title: const Text('Want a charger?')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [

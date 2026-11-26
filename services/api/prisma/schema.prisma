@@ -523,7 +523,7 @@ model CancellationPolicy {
 
 // ---------- Charger shop ----------
 
-/// An EV charger EVGO sells (home/workplace AC, or DC fast). Shown in the app's "Need a charger?".
+/// An EV charger EVGO sells (home/workplace AC, or DC fast). Shown in the app's "Want a charger?".
 model ChargerProduct {
   id                   String        @id @default(uuid())
   name                 String
