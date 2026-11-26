@@ -200,6 +200,7 @@ class WalletSummary {
             WalletEntry(
               amountPaise: (h as Map<String, dynamic>)['amountPaise'] as int,
               memo: h['memo'] as String? ?? '',
+              at: h['at'] == null ? null : DateTime.parse(h['at'] as String).toLocal(),
             ),
         ],
       );
@@ -209,10 +210,14 @@ class WalletSummary {
 }
 
 class WalletEntry {
-  WalletEntry({required this.amountPaise, required this.memo});
+  WalletEntry({required this.amountPaise, required this.memo, this.at});
 
   final int amountPaise;
   final String memo;
+  final DateTime? at;
+
+  /// Money spent on a ticket or a charge: already shown as that ticket or charge in Recent activity.
+  bool get isPurchase => memo.startsWith('Bus ticket') || memo.startsWith('Charging');
 }
 
 class ChargerSummary {

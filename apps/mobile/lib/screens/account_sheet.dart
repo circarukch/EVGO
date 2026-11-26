@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../api/evgo_api.dart';
 import '../brand.dart';
+import 'activity_screen.dart';
 
-/// Account menu: shows who is logged in and lets them log out.
+/// Account menu: who is logged in, their recent activity, and log out.
 Future<void> showAccountSheet(BuildContext context, EvgoApi api) {
   return showModalBottomSheet<void>(
     context: context,
@@ -18,6 +19,17 @@ Future<void> showAccountSheet(BuildContext context, EvgoApi api) {
             subtitle: Text(api.phone ?? 'Your mobile number'),
           ),
           const Divider(),
+          ListTile(
+            key: const Key('account-activity'),
+            leading: const Icon(Icons.history, color: Brand.blue),
+            title: const Text('Recent activity'),
+            subtitle: const Text('Bus tickets, charging and wallet, newest first'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ActivityScreen(api: api)));
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text('Log out', style: TextStyle(color: Colors.red)),

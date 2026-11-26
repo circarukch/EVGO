@@ -271,7 +271,7 @@ export class ChargingService {
     const rows = await this.db.chargingSession.findMany({
       where: { userId },
       orderBy: [{ status: "asc" }, { startedAt: "desc" }],
-      take: Math.min(Math.max(limit, 1), 20),
+      take: Math.min(Math.max(Number.isFinite(limit) ? limit : 5, 1), 50),
       select: { id: true },
     });
     return { sessions: await Promise.all(rows.map((r) => this.view(userId, r.id))) };
