@@ -8,7 +8,7 @@ import '../brand.dart';
 import 'charging_session_screen.dart';
 import 'trip_details_screen.dart';
 
-/// Landing page after login: two big choices (a bus ticket or a charge),
+/// Landing page after login: three big choices (a bus ticket, a charge, or buying a charger),
 /// then the user's trips: a running charge (live), upcoming bus tickets, recent charging.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -16,6 +16,7 @@ class HomeScreen extends StatefulWidget {
     required this.api,
     required this.onBookTicket,
     required this.onCharge,
+    required this.onShop,
     required this.onWallet,
     this.liveEvery = const Duration(seconds: 5),
   });
@@ -24,6 +25,7 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback onBookTicket;
 
   final VoidCallback onCharge;
+  final VoidCallback onShop;
   final VoidCallback onWallet;
   final Duration liveEvery;
 
@@ -115,6 +117,16 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: Icons.bolt,
           colors: const [Brand.green, Brand.lime],
           onTap: widget.onCharge,
+        ),
+        const SizedBox(height: 12),
+        _ChoiceCard(
+          key: const Key('choice-shop'),
+          title: 'Want a charger?',
+          subtitle: 'Buy an AC or DC charger for your home, building, business or fleet. Installation available.',
+          action: 'Shop chargers',
+          icon: Icons.ev_station,
+          colors: const [Brand.ink, Brand.blue],
+          onTap: widget.onShop,
         ),
         const SizedBox(height: 20),
         Text('Your trips', style: text.titleMedium),

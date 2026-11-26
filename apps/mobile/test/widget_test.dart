@@ -45,7 +45,7 @@ void main() {
 
   testWidgets('logs in and shows the four tabs', (tester) async {
     await logIn(tester);
-    for (final tab in ['Home', 'Travel', 'Charge', 'Wallet']) {
+    for (final tab in ['Home', 'Travel', 'Charge', 'Shop', 'Wallet']) {
       expect(find.text(tab), findsOneWidget);
     }
     expect(find.text('Want a ticket?'), findsOneWidget);
@@ -505,6 +505,81 @@ void main() {
     await tester.tap(find.text('Find a charger'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('pin-gnt-hub')), findsOneWidget);
+  });
+
+  testWidgets('Want a charger? lists AC and DC chargers, filters them, and sends a quote request', (tester) async {
+    await logIn(tester);
+    await scrollTo(tester, 'Shop chargers');
+    await tester.tap(find.byKey(const Key('choice-shop')));
+    await tester.pumpAndSettle();
+    // The Home card opens the Shop tab.
+    expect(find.byKey(const Key('shop-filter-current')), findsOneWidget);
+    expect(find.byKey(const Key('shop-product-smp-ac-7')), findsOneWidget);
+    expect(find.text('Sample'), findsWidgets);
+    expect(find.text('₹32,000'), findsOneWidget);
+
+    // Same filter tiles as Charge: AC / DC, Power, For.
+    await tester.tap(find.byKey(const Key('shop-filter-current')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DC fast chargers').last);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shop-product-smp-ac-7')), findsNothing);
+    expect(find.byKey(const Key('shop-product-smp-dc-60')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('shop-filter-power')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('180 kW+').last);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shop-product-smp-dc-60')), findsNothing);
+    expect(find.byKey(const Key('shop-product-smp-dc-240')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('shop-filter-use')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Home').last);
+    await tester.pumpAndSettle();
+    expect(find.text('No chargers match these filters'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('shop-clear-filters')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shop-product-smp-ac-7')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('shop-filter-current')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DC fast chargers').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const Key('shop-product-smp-dc-240')));
+    await tester.tap(find.byKey(const Key('shop-product-smp-dc-240')));
+    await tester.pumpAndSettle();
+    expect(find.text('Price on quote'), findsWidgets);
+    expect(find.byKey(const Key('shop-sample-note')), findsOneWidget);
+    await scrollTo(tester, '415 V three phase');
+
+    await tester.tap(find.byKey(const Key('shop-request-quote')));
+    await tester.pumpAndSettle();
+    // Phone is filled in from the login; the site type from what the charger suits.
+    expect(find.text('9876543210'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('quote-send')));
+    await tester.tap(find.byKey(const Key('quote-send')));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter your name'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('quote-name')), 'Ravi');
+    await tester.enterText(find.byKey(const Key('quote-city')), 'Guntur');
+    await tester.ensureVisible(find.byKey(const Key('quote-qty-plus')));
+    await tester.tap(find.byKey(const Key('quote-qty-plus')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('quote-send')));
+    await tester.tap(find.byKey(const Key('quote-send')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('quote-sent')), findsOneWidget);
+    expect(backend.quotes.single, containsPair('productId', 'smp-dc-240'));
+    expect(backend.quotes.single, containsPair('siteType', 'Highway'));
+    expect(backend.quotes.single, containsPair('quantity', 2));
+    await tester.tap(find.byKey(const Key('quote-sent-ok')));
+    await tester.pumpAndSettle();
+
+    // Back on the shop: the request shows under "Your quote requests".
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await scrollTo(tester, 'Your quote requests');
+    expect(find.byKey(const Key('my-quote-L1')), findsOneWidget);
+    expect(find.text('Received'), findsOneWidget);
   });
 
   testWidgets('logs out from the account menu and the same user logs in again', (tester) async {

@@ -3,13 +3,15 @@
 import { ConnectorType, PrismaClient, VehicleSegment } from "@prisma/client";
 import { istDate, istInstant } from "../src/common/time";
 
+import { SAMPLE_CHARGERS } from "./sample-chargers";
+
 const db = new PrismaClient();
 const DAYS_AHEAD = 14;
 
 async function wipe() {
   // Child tables first.
   for (const t of [
-    "CancellationPolicy", "LedgerEntry", "Hold", "TopUp", "Refund",
+    "ChargerLead", "ChargerProduct", "CancellationPolicy", "LedgerEntry", "Hold", "TopUp", "Refund",
     "Payment", "Booking", "ChargingSession", "OrderItem", "Order", "TripSeatInventory",
     "Trip", "Schedule", "Stop", "Route", "Bus", "Seat", "SeatLayout", "Alarm", "Connector", "Charger", "Tariff", "Site",
     "RfidToken", "OperatorUser", "Vehicle", "Passenger", "WalletAccount", "OtpChallenge", "User", "Organisation", "Place",
@@ -128,6 +130,11 @@ async function main() {
       await db.tripSeatInventory.createMany({ data: seats.map((s) => ({ tripId: trip.id, seatLabel: s.label, farePaise: p.farePaise })) });
     }
   }
+  // Charger shop: SAMPLE products until real ones are added in the console.
+  for (const [i, p] of SAMPLE_CHARGERS.entries()) {
+    await db.chargerProduct.create({ data: { ...p, isSample: true, sortOrder: i } });
+  }
+
   console.log(`Seeded Guntur to Hyderabad: 4 places, 5 chargers, ${plans.length * (DAYS_AHEAD + 1)} trips`);
 }
 

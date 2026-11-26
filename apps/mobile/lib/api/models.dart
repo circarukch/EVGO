@@ -573,3 +573,121 @@ String paymentMethodLabel(String? method) => switch (method) {
       null => '-',
       _ => method.toUpperCase(),
     };
+
+/// A charger for sale in the "Want a charger?" shop. [priceInr] is null when the price is on quote (most DC units).
+class ChargerProduct {
+  ChargerProduct({
+    required this.id,
+    required this.name,
+    required this.brand,
+    required this.current,
+    required this.powerKw,
+    required this.connectors,
+    required this.priceInr,
+    required this.warrantyYears,
+    required this.installationIncluded,
+    required this.suitedFor,
+    required this.summary,
+    required this.specs,
+    required this.isSample,
+  });
+
+  factory ChargerProduct.fromJson(Map<String, dynamic> j) => ChargerProduct(
+        id: j['id'] as String,
+        name: j['name'] as String,
+        brand: (j['brand'] as String?) ?? '',
+        current: j['current'] as String,
+        powerKw: (j['powerKw'] as num).toDouble(),
+        connectors: [for (final c in (j['connectors'] as List? ?? const [])) c as String],
+        priceInr: j['priceInr'] as int?,
+        warrantyYears: (j['warrantyYears'] as int?) ?? 0,
+        installationIncluded: (j['installationIncluded'] as bool?) ?? false,
+        suitedFor: [for (final c in (j['suitedFor'] as List? ?? const [])) c as String],
+        summary: (j['summary'] as String?) ?? '',
+        specs: {for (final e in ((j['specs'] as Map?) ?? const {}).entries) e.key as String: '${e.value}'},
+        isSample: (j['isSample'] as bool?) ?? false,
+      );
+
+  final String id;
+  final String name;
+  final String brand;
+
+  /// AC or DC.
+  final String current;
+  final double powerKw;
+  final List<String> connectors;
+  final int? priceInr;
+  final int warrantyYears;
+  final bool installationIncluded;
+  final List<String> suitedFor;
+  final String summary;
+  final Map<String, String> specs;
+
+  /// Placeholder product: shown with a "Sample" badge until real products are added.
+  final bool isSample;
+
+  bool get isDc => current == 'DC';
+
+  /// "7.4 kW", "60 kW".
+  String get powerLabel => '${powerKw == powerKw.roundToDouble() ? powerKw.toStringAsFixed(0) : powerKw.toString()} kW';
+
+  String get priceLabel => priceInr == null ? 'Price on quote' : inr(priceInr!);
+}
+
+/// Whole rupees with Indian digit grouping: 1,23,456.
+String inr(int rupees) {
+  final s = rupees.toString();
+  if (s.length <= 3) return '₹$s';
+  final last3 = s.substring(s.length - 3);
+  var rest = s.substring(0, s.length - 3);
+  final parts = <String>[];
+  while (rest.length > 2) {
+    parts.insert(0, rest.substring(rest.length - 2));
+    rest = rest.substring(0, rest.length - 2);
+  }
+  if (rest.isNotEmpty) parts.insert(0, rest);
+  return '₹${parts.join(',')},$last3';
+}
+
+/// A quote request sent from the shop.
+class ChargerLead {
+  ChargerLead({
+    required this.id,
+    required this.productName,
+    required this.city,
+    required this.siteType,
+    required this.quantity,
+    required this.status,
+    required this.createdAt,
+  });
+
+  factory ChargerLead.fromJson(Map<String, dynamic> j) => ChargerLead(
+        id: j['id'] as String,
+        productName: j['productName'] as String?,
+        city: j['city'] as String,
+        siteType: j['siteType'] as String,
+        quantity: (j['quantity'] as int?) ?? 1,
+        status: j['status'] as String,
+        createdAt: DateTime.parse(j['createdAt'] as String),
+      );
+
+  final String id;
+  final String? productName;
+  final String city;
+  final String siteType;
+  final int quantity;
+  final String status;
+  final DateTime createdAt;
+
+  String get statusLabel => switch (status) {
+        'NEW' => 'Received',
+        'CONTACTED' => 'We called you',
+        'QUOTED' => 'Quote sent',
+        'WON' => 'Order placed',
+        'LOST' => 'Closed',
+        _ => status,
+      };
+}
+
+/// Where the charger will go. Matches the server's list.
+const chargerSiteTypes = ['Home', 'Apartment', 'Office', 'Shop', 'Highway', 'Fleet depot', 'Bus depot', 'Other'];
