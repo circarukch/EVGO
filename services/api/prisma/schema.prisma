@@ -78,18 +78,19 @@ enum OrgKind {
 }
 
 model Organisation {
-  id           String         @id @default(uuid())
-  name         String
-  kinds        OrgKind[]
-  gstin        String?
-  commissionBp Int            @default(0) // basis points
-  users        OperatorUser[]
-  sites        Site[]
-  buses        Bus[]
-  routes       Route[]
-  vehicles     Vehicle[]
-  tariffs      Tariff[]
-  rfidTokens   RfidToken[]
+  id                   String               @id @default(uuid())
+  name                 String
+  kinds                OrgKind[]
+  gstin                String?
+  commissionBp         Int                  @default(0) // basis points
+  users                OperatorUser[]
+  sites                Site[]
+  buses                Bus[]
+  routes               Route[]
+  vehicles             Vehicle[]
+  tariffs              Tariff[]
+  rfidTokens           RfidToken[]
+  cancellationPolicies CancellationPolicy[]
 }
 
 model OperatorUser {
@@ -431,4 +432,16 @@ model TopUp {
   gatewayRef  String?       @unique
   createdAt   DateTime      @default(now())
   wallet      WalletAccount @relation(fields: [walletId], references: [id])
+}
+
+// ---------- Operator settings ----------
+
+// Refund tiers an operator sets in the console. A cancellation gets the refund of the first
+// tier whose minHoursBefore it meets (tiers sorted by hours, highest first); below the
+// lowest tier, cancellation is closed.
+model CancellationPolicy {
+  orgId     String       @id
+  tiers     Json // [{ "minHoursBefore": 24, "refundPercent": 90 }, ...]
+  updatedAt DateTime     @updatedAt
+  org       Organisation @relation(fields: [orgId], references: [id])
 }

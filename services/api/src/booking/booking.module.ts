@@ -1,7 +1,13 @@
 import { Module } from "@nestjs/common";
+import { AdminController } from "../admin/admin.controller";
 import { WalletModule } from "../wallet/wallet.module";
 import { BookingController } from "./booking.controller";
 import { BookingService } from "./booking.service";
+import { CancellationPolicyService } from "./cancellation-policy.service";
 
-@Module({ imports: [WalletModule], controllers: [BookingController], providers: [BookingService] })
+@Module({
+  imports: [WalletModule],
+  controllers: [BookingController, AdminController],
+  providers: [BookingService, CancellationPolicyService],
+})
 export class BookingModule {}

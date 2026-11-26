@@ -16,7 +16,7 @@ class SeatScreen extends StatefulWidget {
 
 class _SeatScreenState extends State<SeatScreen> {
   static const maxSeats = 6;
-  late Future<List<SeatInfo>> _seats = widget.api.seats(widget.trip.id);
+  late Future<SeatMap> _seats = widget.api.seats(widget.trip.id);
   final _selected = <String>{};
   final _name = TextEditingController();
   bool _busy = false;
@@ -105,12 +105,13 @@ class _SeatScreenState extends State<SeatScreen> {
   }
 
   Widget _picker(BuildContext context) {
-    return FutureBuilder<List<SeatInfo>>(
+    return FutureBuilder<SeatMap>(
       future: _seats,
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
         if (snap.hasError) return Center(child: Text('Could not load seats: ${snap.error}'));
-        final seats = snap.data!;
+        final seats = snap.data!.seats;
+        final refundSummary = snap.data!.refundSummary;
         final fare = {for (final s in seats) s.seatLabel: s.farePaise};
         final total = _selected.fold<int>(0, (sum, s) => sum + (fare[s] ?? 0));
         return Column(
@@ -144,6 +145,11 @@ class _SeatScreenState extends State<SeatScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (refundSummary.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(refundSummary, style: Theme.of(context).textTheme.bodySmall),
+                    ),
                   TextField(controller: _name, decoration: const InputDecoration(labelText: 'Passenger name')),
                   if (_error != null)
                     Padding(

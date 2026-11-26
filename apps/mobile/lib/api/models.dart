@@ -164,3 +164,28 @@ class ConnectorInfo {
   final double powerKw;
   final String status;
 }
+
+class RefundTier {
+  RefundTier({required this.minHoursBefore, required this.refundPercent});
+
+  factory RefundTier.fromJson(Map<String, dynamic> j) =>
+      RefundTier(minHoursBefore: (j['minHoursBefore'] as num).toDouble(), refundPercent: j['refundPercent'] as int);
+
+  final double minHoursBefore;
+  final int refundPercent;
+}
+
+class SeatMap {
+  SeatMap({required this.seats, required this.refundTiers});
+
+  final List<SeatInfo> seats;
+  final List<RefundTier> refundTiers;
+
+  /// "Cancel 24h+ before: 90% back · 6h+: 50% back · closes 6h before"
+  String get refundSummary {
+    if (refundTiers.isEmpty) return '';
+    String h(double v) => v == v.roundToDouble() ? '${v.toInt()}h' : '${v}h';
+    final parts = [for (final t in refundTiers) '${h(t.minHoursBefore)}+ before: ${t.refundPercent}% back'];
+    return 'Cancel ${parts.join(' · ')}. Closes ${h(refundTiers.last.minHoursBefore)} before departure.';
+  }
+}

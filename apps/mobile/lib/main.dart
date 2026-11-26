@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'api/evgo_api.dart';
+import 'brand.dart';
 import 'screens/charge_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -25,7 +26,7 @@ class _EvgoAppState extends State<EvgoApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'EVGO',
-      theme: ThemeData(colorSchemeSeed: const Color(0xFF0B8457), useMaterial3: true),
+      theme: Brand.theme(),
       home: widget.api.token == null
           ? LoginScreen(api: widget.api, onLoggedIn: () => setState(() {}))
           : AppShell(api: widget.api),
@@ -55,7 +56,18 @@ class _AppShellState extends State<AppShell> {
       WalletScreen(api: widget.api, key: ValueKey('wallet-$_index')),
     ];
     return Scaffold(
-      body: SafeArea(child: pages[_index]),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 10, 16, 8),
+              child: Align(alignment: Alignment.centerLeft, child: EvgoLogo(height: 28)),
+            ),
+            const BrandRule(height: 2),
+            Expanded(child: pages[_index]),
+          ],
+        ),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),

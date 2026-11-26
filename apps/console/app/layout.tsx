@@ -1,23 +1,29 @@
 import type { ReactNode } from "react";
+import "./globals.css";
 
 export const metadata = { title: "EVGO Operator console" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body style={{ fontFamily: "system-ui, sans-serif", margin: 0, display: "flex", minHeight: "100vh" }}>
-        <nav style={{ width: 200, padding: 16, borderRight: "1px solid #ddd" }}>
-          <strong>EVGO Operator</strong>
-          <ul style={{ listStyle: "none", padding: 0, lineHeight: 2 }}>
-            <li>Chargers</li>
+      <body>
+        <nav>
+          <a href="/">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/evgo-logo.png" alt="EVGO" width={120} height={34} />
+          </a>
+          <p className="sub">Operator console</p>
+          <ul>
+            <li><a href="/">Chargers</a></li>
             <li>Sessions</li>
             <li>Tariffs</li>
             <li>Routes and trips</li>
             <li>Manifests</li>
+            <li><a href="/settings/cancellation">Cancellation and refunds</a></li>
             <li>Settlements</li>
           </ul>
         </nav>
-        <div style={{ flex: 1, padding: 24 }}>{children}</div>
+        <div className="content">{children}</div>
       </body>
     </html>
   );

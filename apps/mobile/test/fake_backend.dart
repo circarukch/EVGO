@@ -38,6 +38,10 @@ class FakeBackend {
     }
     if (path == '/trips/T1/seats') {
       return json({
+        'cancellationPolicy': [
+          {'minHoursBefore': 24, 'refundPercent': 90},
+          {'minHoursBefore': 6, 'refundPercent': 50},
+        ],
         'seats': [
           for (final s in ['S1', 'S2', 'S3', 'S4'])
             {'seatLabel': s, 'farePaise': 54900, 'status': booked.contains(s) ? 'booked' : (held.contains(s) ? 'held' : 'available')}

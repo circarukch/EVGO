@@ -35,7 +35,7 @@ pnpm --filter @evgo/api dev            # http://localhost:3001/v1/health
 pnpm --filter @evgo/ocpp-gateway dev   # ws://localhost:9000/ocpp/<chargePointId>
 pnpm --filter @evgo/ocpp-gateway simulate   # run a simulated charging session against the gateway
 pnpm --filter @evgo/web dev            # http://localhost:3000
-pnpm --filter @evgo/console dev        # http://localhost:3002
+pnpm --filter @evgo/console dev        # http://localhost:3002 (refund rules under Cancellation and refunds)
 
 cd apps/mobile && flutter create --org in.evgo --project-name evgo --platforms=android,ios . && flutter run
 ```
@@ -46,6 +46,17 @@ database, or `TEST_DATABASE_URL`) and `cd apps/mobile && flutter test`.
 Logging in during development: with `OTP_DEV_ECHO=true` the API returns the 6-digit code
 in the response and the app shows it under the code field, so no SMS is needed. Adding
 money uses a mock payment gateway outside production.
+
+## Brand
+
+Logo, icon and colours are in [docs/brand](docs/brand/README.md) and `packages/brand/brand.json`.
+
+## Operator settings
+
+Refund rules for cancellations are set per bus operator in the console
+(Cancellation and refunds). Until operator accounts exist, the console server calls the
+API's `/admin` routes with a shared key: set the same value as `ADMIN_API_KEY` on the API
+and `EVGO_ADMIN_API_KEY` on the console (both default to `dev-admin-key` outside production).
 
 ## What works today
 
