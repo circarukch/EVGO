@@ -82,13 +82,60 @@ class FakeBackend {
     }
     if (path == '/chargers') {
       return json([
-        {'id': 'GNT-HUB-01', 'operator': 'EVGO', 'place': {'name': 'Guntur EVGO Hub'}, 'connectors': [{'type': 'CCS2', 'powerKw': 60, 'status': 'Available'}], 'pricePerKwhInr': 18}
+        {
+          'id': 'GNT-HUB-01', 'operator': 'EVGO', 'pricePerKwhInr': 18, 'segments': ['4W'],
+          'place': {'id': 'gnt-hub', 'name': 'Guntur EVGO Hub', 'city': 'Guntur', 'lat': 16.3067, 'lng': 80.4365},
+          'connectors': [{'id': 1, 'type': 'CCS2', 'powerKw': 60, 'status': session == null ? 'Available' : 'Charging'}],
+        },
+        {
+          'id': 'HYD-LBN-01', 'operator': 'EVGO', 'pricePerKwhInr': 18, 'segments': ['4W'],
+          'place': {'id': 'hyd-lbn', 'name': 'Hyderabad LB Nagar', 'city': 'Hyderabad', 'lat': 17.3457, 'lng': 78.5522},
+          'connectors': [{'id': 1, 'type': 'CCS2', 'powerKw': 60, 'status': 'Faulted'}],
+        },
+        {
+          'id': 'VJW-BNZ-01', 'operator': 'EVGO', 'pricePerKwhInr': 15, 'segments': ['4W'],
+          'place': {'id': 'vjw-bnz', 'name': 'Vijayawada Benz Circle', 'city': 'Vijayawada', 'lat': 16.4985, 'lng': 80.6563},
+          'connectors': [{'id': 1, 'type': 'Type2', 'powerKw': 22, 'status': 'Available'}],
+        },
+        {
+          'id': 'SRY-DEP-01', 'operator': 'EVGO', 'pricePerKwhInr': 20, 'segments': ['BUS'],
+          'place': {'id': 'sry-dep', 'name': 'Suryapet Bus Depot', 'city': 'Suryapet', 'lat': 17.1405, 'lng': 79.6231},
+          'connectors': [{'id': 1, 'type': 'CCS2', 'powerKw': 240, 'status': 'Available'}],
+        },
       ]);
+    }
+    if (path == '/charging/sessions' && req.method == 'POST') {
+      if (balancePaise < 10000) {
+        return json({'message': 'Keep at least ₹100 in your wallet to start charging', 'shortfallPaise': 10000 - balancePaise}, 402);
+      }
+      session = {'energyWh': 0, 'status': 'ACTIVE', 'chargePointId': body['chargePointId'], 'connectorId': body['connectorId']};
+      return json(_session(), 201);
+    }
+    if (path == '/charging/sessions/active') return json({'session': session?['status'] == 'ACTIVE' ? _session() : null});
+    if (path == '/charging/sessions/s1') {
+      session!['energyWh'] = (session!['energyWh'] as int) + 1500;
+      return json(_session());
+    }
+    if (path == '/charging/sessions/s1/stop') {
+      session!['status'] = 'STOPPED';
+      final cost = (session!['energyWh'] as int) * 18 ~/ 10;
+      balancePaise -= cost;
+      return json({..._session(), 'balancePaise': balancePaise}, 201);
     }
     return json({'message': 'not found'}, 404);
   });
 
   int _lastTopUp = 0;
+  Map<String, Object?>? session;
+
+  Map<String, Object?> _session() {
+    final wh = session!['energyWh'] as int;
+    return {
+      'id': 's1', 'status': session!['status'], 'chargePointId': session!['chargePointId'], 'connectorId': session!['connectorId'],
+      'placeName': 'Guntur EVGO Hub', 'connectorType': 'CCS2', 'perKwhInr': 18, 'startedAt': DateTime.now().toIso8601String(),
+      'energyKwh': wh / 1000, 'powerKw': session!['status'] == 'ACTIVE' ? 51 : 0, 'costPaise': wh * 18 ~/ 10,
+    };
+  }
 
   /// Wraps [client] to remember the amount of each top-up request.
   http.Client get recordingClient => _Recording(this);

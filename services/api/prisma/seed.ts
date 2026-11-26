@@ -27,7 +27,7 @@ async function main() {
   const place = (id: string, name: string, city: string, lat: number, lng: number, isStop: boolean, isSite: boolean) =>
     db.place.create({ data: { id, name, city, lat, lng, isStop, isSite } });
   const gnt = await place("gnt-hub", "Guntur EVGO Hub", "Guntur", 16.3067, 80.4365, true, true);
-  const vjw = await place("vjw-stop", "Vijayawada Benz Circle", "Vijayawada", 16.4985, 80.6563, true, false);
+  const vjw = await place("vjw-stop", "Vijayawada Benz Circle", "Vijayawada", 16.4985, 80.6563, true, true);
   const sry = await place("sry-plaza", "Suryapet Highway Plaza", "Suryapet", 17.1405, 79.6231, false, true);
   const hyd = await place("hyd-lbn", "Hyderabad LB Nagar", "Hyderabad", 17.3457, 78.5522, true, true);
 
@@ -45,6 +45,7 @@ async function main() {
   await site("site-gnt-depot", evgo.id, gnt.id, "Guntur e-bus depot", "fleet_only");
   await site("site-sry", partnerCpo.id, sry.id, "Suryapet plaza");
   await site("site-hyd", evgo.id, hyd.id, "LB Nagar hub");
+  await site("site-vjw", evgo.id, vjw.id, "Benz Circle bay");
 
   type C = { ocppId: number; type: ConnectorType; kw: number; segments: VehicleSegment[]; status: string; tariffId: string };
   const charger = (siteId: string, chargePointId: string, connectors: C[]) =>
@@ -73,6 +74,11 @@ async function main() {
   ]);
   await charger("site-hyd", "HYD-LBN-01", [
     { ocppId: 1, type: "CCS2", kw: 60, segments: ["FOUR_WHEELER"], status: "Faulted", tariffId: evgo4w.id },
+  ]);
+
+  await charger("site-vjw", "VJW-BNZ-01", [
+    { ocppId: 1, type: "CCS2", kw: 60, segments: ["FOUR_WHEELER"], status: "Available", tariffId: evgo4w.id },
+    { ocppId: 2, type: "CCS2", kw: 30, segments: ["FOUR_WHEELER"], status: "Available", tariffId: evgo4w.id },
   ]);
 
   // ---- Bus ----

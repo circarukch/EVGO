@@ -14,6 +14,13 @@ function adminApiKey(): string {
   return "dev-admin-key";
 }
 
+/** "simulated" (dev, tests, demo) until the OCPP gateway link is built; never simulated in production. */
+function chargerControl(): "simulated" | "gateway" {
+  const v = process.env.CHARGER_CONTROL ?? (env === "production" ? "gateway" : "simulated");
+  if (v === "simulated" && env === "production") throw new Error("Simulated chargers cannot run in production");
+  return v === "simulated" ? "simulated" : "gateway";
+}
+
 export const config = {
   env,
   jwtSecret: jwtSecret(),
@@ -28,6 +35,11 @@ export const config = {
   otpMaxPerHour: 5,
   seatHoldMinutes: 10,
   maxSeatsPerBooking: 6,
+  chargerControl: chargerControl(),
+  /** Simulated chargers run this many times faster than real time. */
+  chargingSimSpeedup: Number(process.env.CHARGING_SIM_SPEEDUP ?? 1),
+  /** Wallet balance needed to start a charging session (₹100). */
+  chargingMinStartPaise: 10_000,
   topUpMinPaise: 100, // ₹1
   topUpMaxPaise: 10_000_000, // ₹1,00,000, the usual limit for a full-KYC prepaid wallet
 };

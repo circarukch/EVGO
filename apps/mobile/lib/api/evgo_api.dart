@@ -99,6 +99,24 @@ class EvgoApi {
     return list.map((j) => ChargerSummary.fromJson(j as Map<String, dynamic>)).toList();
   }
 
+  // ---- Charging ----
+
+  /// Starts a session. Throws [ApiException] 402 with `shortfallPaise` when the wallet is below the minimum.
+  Future<ChargingSessionView> startCharging(String chargePointId, int connectorId) async => ChargingSessionView.fromJson(
+      await _post('/charging/sessions', {'chargePointId': chargePointId, 'connectorId': connectorId}) as Map<String, dynamic>);
+
+  Future<ChargingSessionView?> activeCharging() async {
+    final r = await _get('/charging/sessions/active') as Map<String, dynamic>;
+    final s = r['session'];
+    return s == null ? null : ChargingSessionView.fromJson(s as Map<String, dynamic>);
+  }
+
+  Future<ChargingSessionView> chargingSession(String id) async =>
+      ChargingSessionView.fromJson(await _get('/charging/sessions/$id') as Map<String, dynamic>);
+
+  Future<ChargingSessionView> stopCharging(String id) async =>
+      ChargingSessionView.fromJson(await _post('/charging/sessions/$id/stop') as Map<String, dynamic>);
+
   // ---- Booking ----
 
   Future<SeatMap> seats(String tripId) async {
