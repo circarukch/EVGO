@@ -58,7 +58,19 @@ describe("Bus booking", () => {
     expect(paid.body.balancePaise).toBe(200000 - 2 * fare);
 
     const mine = (await request(http()).get("/v1/bookings").set(as(token)).expect(200)).body;
-    expect(mine[0]).toMatchObject({ orderId: hold.body.orderId, status: "PAID", route: "Guntur to Hyderabad" });
+    expect(mine[0]).toMatchObject({
+      orderId: hold.body.orderId,
+      status: "PAID",
+      route: "Guntur to Hyderabad",
+      operator: expect.any(String),
+      payment: { method: "wallet", amountPaise: 2 * fare },
+      refundPaise: 0,
+      boarding: { city: "Guntur" },
+      dropping: { city: "Hyderabad" },
+    });
+    expect(mine[0].tickets.map((t: { seatLabel: string; farePaise: number }) => [t.seatLabel, t.farePaise])).toEqual([["S1", fare], ["S2", fare]]);
+    expect(mine[0].cancellationPolicy.length).toBeGreaterThan(0);
+    expect(new Date(mine[0].dropping.at).getTime()).toBeGreaterThan(new Date(mine[0].departsAt).getTime());
 
     // Paying twice does nothing.
     await request(http()).post(`/v1/bookings/${hold.body.orderId}/pay`).set(as(token)).expect(409);
@@ -123,6 +135,8 @@ describe("Bus booking", () => {
     expect(c.body.refundPaise).toBe(Math.floor(fare * 0.9));
     expect(c.body.balancePaise).toBe(Math.floor(fare * 0.9));
     await request(http()).post(`/v1/bookings/${hold.body.orderId}/cancel`).set(as(token)).expect(409);
+    const mine = (await request(http()).get("/v1/bookings").set(as(token)).expect(200)).body;
+    expect(mine[0]).toMatchObject({ status: "PARTIALLY_REFUNDED", refundPaise: Math.floor(fare * 0.9) });
 
     const s = await db(app).tripSeatInventory.findUniqueOrThrow({ where: { tripId_seatLabel: { tripId, seatLabel: "S30" } } });
     expect(s.status).toBe("available");

@@ -6,6 +6,7 @@ import '../api/evgo_api.dart';
 import '../api/models.dart';
 import '../brand.dart';
 import 'charging_session_screen.dart';
+import 'trip_details_screen.dart';
 
 /// Landing page after login: two big choices (a bus ticket or a charge),
 /// then the user's trips: a running charge (live), upcoming bus tickets, recent charging.
@@ -73,15 +74,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadCharging();
   }
 
-  Future<void> _cancel(BookingSummary b) async {
-    try {
-      final refund = await widget.api.cancelBooking(b.orderId);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Cancelled. ${rupees(refund)} refunded to your wallet')));
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-    }
+  Future<void> _openTrip(BookingSummary b) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => TripDetailsScreen(api: widget.api, booking: b)));
+    if (!mounted) return;
     setState(() {
       _bookings = widget.api.myBookings();
     });
@@ -147,10 +142,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 for (final b in bookings)
                   Card(
                     child: ListTile(
-                      leading: const Icon(Icons.directions_bus, color: Brand.blue),
+                      key: Key('trip-${b.orderId}'),
+                      onTap: () => _openTrip(b),
+                      leading: const CircleAvatar(
+                        backgroundColor: Color(0x1A0A6EBD),
+                        foregroundColor: Brand.blue,
+                        child: Icon(Icons.directions_bus),
+                      ),
                       title: Text(b.route),
-                      subtitle: Text('${b.departs} · Seats ${b.seats.join(', ')} · ${rupees(b.totalPaise)}'),
-                      trailing: TextButton(onPressed: () => _cancel(b), child: const Text('Cancel')),
+                      subtitle: Text(
+                        '${b.departsAt == null ? '' : '${shortDate(b.departsAt!)} · '}${b.departs} · '
+                        'Seat${b.seats.length == 1 ? '' : 's'} ${b.seats.join(', ')}',
+                      ),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(rupees(b.totalPaise), style: const TextStyle(fontWeight: FontWeight.w700)),
+                          const Icon(Icons.chevron_right, size: 18),
+                        ],
+                      ),
                     ),
                   ),
                 if (done.isNotEmpty) ...[
@@ -170,7 +181,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         title: Text(s.placeName),
                         subtitle: Text('${_when(s.startedAt)} · ${s.energyKwh.toStringAsFixed(1)} kWh'
                             '${s.paidByUpi ? ' · Paid by UPI' : ' · Wallet'}'),
-                        trailing: Text(rupees(s.costPaise), style: const TextStyle(fontWeight: FontWeight.w700)),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(rupees(s.costPaise), style: const TextStyle(fontWeight: FontWeight.w700)),
+                            const Icon(Icons.chevron_right, size: 18),
+                          ],
+                        ),
                       ),
                     ),
                 ],

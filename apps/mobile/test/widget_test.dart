@@ -81,6 +81,30 @@ void main() {
     await tester.pumpAndSettle();
     await scrollTo(tester, 'Guntur to Hyderabad');
     expect(find.text('Guntur to Hyderabad'), findsOneWidget);
+    expect(find.textContaining('Fri 4 Dec · 06:00 · Seat S1'), findsOneWidget); // the date, not just the time
+
+    // Tap for the full ticket.
+    await tester.tap(find.text('Guntur to Hyderabad'));
+    await tester.pumpAndSettle();
+    expect(find.text('Trip details'), findsOneWidget);
+    expect(find.text('Fri, 4 Dec 2026'), findsOneWidget);
+    expect(find.text('Guntur Bus Stand\nGuntur'), findsOneWidget);
+    expect(find.text('MGBS\nHyderabad'), findsOneWidget);
+    expect(find.text('Journey 5 h 30 min'), findsOneWidget);
+    expect(find.text('Priya · Seat S1'), findsOneWidget);
+    expect(find.text('Ticket TKS1'), findsOneWidget);
+    expect(find.text('AP 07 EV 1234'), findsOneWidget);
+    expect(find.text('Confirmed'), findsOneWidget);
+    await scrollTo(tester, 'Cancel ticket');
+    await tester.tap(find.byKey(const Key('cancel-ticket')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Cancel ticket').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Cancelled. ₹494.10 refunded to your wallet'), findsOneWidget);
+    await tester.drag(find.byType(ListView).first, const Offset(0, 2000));
+    await tester.pumpAndSettle();
+    expect(find.text('Cancelled, partly refunded'), findsOneWidget);
+    expect(find.byKey(const Key('cancel-ticket')), findsNothing);
   });
 
   testWidgets('adds money and shows the wallet history', (tester) async {
@@ -194,6 +218,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Charging done'), findsOneWidget);
+    await scrollTo(tester, 'Wallet balance');
     expect(find.text('₹473'), findsOneWidget); // wallet after paying ₹27
   });
 
@@ -248,9 +273,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Charging done'), findsOneWidget);
-    expect(find.text('Paid by UPI'), findsOneWidget);
+    await scrollTo(tester, 'Released to your bank');
+    expect(find.text('UPI'), findsOneWidget); // Paid by
     expect(find.text('Released to your bank'), findsOneWidget);
     expect(find.text('₹473'), findsOneWidget); // ₹500 held − ₹27 used
+    await scrollTo(tester, 'Share receipt');
+    expect(find.text('GST (18%)'), findsOneWidget);
+    expect(find.byKey(const Key('share-receipt')), findsOneWidget);
     expect(backend.balancePaise, 0);
   });
 

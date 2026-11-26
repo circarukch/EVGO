@@ -48,6 +48,8 @@ describe("Charging paid by UPI, no wallet", () => {
     const cost = stopped.body.costPaise;
     expect(cost).toBeGreaterThan(14_000);
     expect(stopped.body.payment).toMatchObject({ method: "upi", status: "CAPTURED", capturedPaise: cost, releasedPaise: 50_000 - cost });
+    expect(stopped.body).toMatchObject({ city: "Vijayawada", current: "DC", connectorPowerKw: 60, orderId: expect.any(String) });
+    expect(stopped.body.paymentRef).toMatch(/^mock_/);
     expect(await status("VJW-BNZ-01", 1)).toBe("Available");
 
     // The wallet was never touched; the money went gateway → operator.

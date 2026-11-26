@@ -18,8 +18,9 @@ import { WalletService } from "../wallet/wallet.service";
 import { CHARGER_CONTROL, ChargerControl } from "./charger-control";
 
 const sessionInclude = {
-  charger: { include: { site: { include: { place: true } }, connectors: { include: { tariff: true } } } },
+  charger: { include: { site: { include: { place: true, org: true } }, connectors: { include: { tariff: true } } } },
   paymentBlock: true,
+  orderItem: { include: { order: { include: { payments: true } } } },
 } satisfies Prisma.ChargingSessionInclude;
 type SessionRow = Prisma.ChargingSessionGetPayload<{ include: typeof sessionInclude }>;
 
@@ -399,6 +400,12 @@ export class ChargingService {
       powerKw: Math.round(powerKw * 10) / 10,
       costPaise: s.status === "STOPPED" && s.costPaise !== null ? s.costPaise : costOf(energyWh, s.perKwhPaise),
       maxCostPaise: s.maxCostPaise,
+      city: s.charger.site.place.city,
+      operator: s.charger.site.org.name,
+      connectorPowerKw: connector ? Number(connector.maxPowerKw) : null,
+      current: connector && ["CCS2", "GBT", "BHARAT_DC001", "LECCS"].includes(connector.type) ? "DC" : "AC",
+      orderId: s.orderItem?.orderId ?? null,
+      paymentRef: s.orderItem?.order.payments[0]?.gatewayRef ?? s.paymentBlock?.gatewayRef ?? null,
       payment: s.paymentBlock
         ? {
             method: "upi" as const,

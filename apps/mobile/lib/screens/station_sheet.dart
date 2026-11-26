@@ -7,7 +7,9 @@ import 'station_map.dart';
 
 String plugLabel(String type) => switch (type) {
       'LEV_AC' => 'LEV AC',
-      'BharatDC001' => 'Bharat DC-001',
+      'BharatDC001' || 'BHARAT_DC001' => 'Bharat DC-001',
+      'TYPE2' => 'Type2',
+      'GBT' => 'GB/T',
       _ => type,
     };
 

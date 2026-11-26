@@ -79,17 +79,39 @@ class BookingSummary {
     required this.departs,
     required this.departsAt,
     required this.seats,
+    this.bookedAt,
+    this.boarding,
+    this.dropping,
+    this.operator = '',
+    this.busRegistration,
+    this.paymentMethod,
+    this.refundPaise = 0,
+    this.tickets = const [],
+    this.refundTiers = const [],
   });
 
-  factory BookingSummary.fromJson(Map<String, dynamic> j) => BookingSummary(
-        orderId: j['orderId'] as String,
-        status: j['status'] as String,
-        totalPaise: j['totalPaise'] as int,
-        route: j['route'] as String? ?? '',
-        departs: j['departs'] as String? ?? '',
-        departsAt: j['departsAt'] == null ? null : DateTime.parse(j['departsAt'] as String).toLocal(),
-        seats: [for (final t in j['tickets'] as List) (t as Map<String, dynamic>)['seatLabel'] as String? ?? ''],
-      );
+  factory BookingSummary.fromJson(Map<String, dynamic> j) {
+    final tickets = [for (final t in j['tickets'] as List) TicketInfo.fromJson(t as Map<String, dynamic>)];
+    final payment = j['payment'] as Map<String, dynamic>?;
+    return BookingSummary(
+      orderId: j['orderId'] as String,
+      status: j['status'] as String,
+      totalPaise: j['totalPaise'] as int,
+      route: j['route'] as String? ?? '',
+      departs: j['departs'] as String? ?? '',
+      departsAt: j['departsAt'] == null ? null : DateTime.parse(j['departsAt'] as String).toLocal(),
+      seats: [for (final t in tickets) t.seatLabel],
+      bookedAt: j['bookedAt'] == null ? null : DateTime.parse(j['bookedAt'] as String).toLocal(),
+      boarding: j['boarding'] == null ? null : StopTime.fromJson(j['boarding'] as Map<String, dynamic>),
+      dropping: j['dropping'] == null ? null : StopTime.fromJson(j['dropping'] as Map<String, dynamic>),
+      operator: j['operator'] as String? ?? '',
+      busRegistration: (j['bus'] as Map<String, dynamic>?)?['registration'] as String?,
+      paymentMethod: payment?['method'] as String?,
+      refundPaise: (j['refundPaise'] as num?)?.toInt() ?? 0,
+      tickets: tickets,
+      refundTiers: [for (final t in (j['cancellationPolicy'] as List?) ?? const []) RefundTier.fromJson(t as Map<String, dynamic>)],
+    );
+  }
 
   final String orderId;
   final String status;
@@ -98,7 +120,75 @@ class BookingSummary {
   final String departs;
   final DateTime? departsAt;
   final List<String> seats;
+  final DateTime? bookedAt;
+  final StopTime? boarding;
+  final StopTime? dropping;
+  final String operator;
+  final String? busRegistration;
+  final String? paymentMethod;
+  final int refundPaise;
+  final List<TicketInfo> tickets;
+  final List<RefundTier> refundTiers;
+
+  bool get isActive => status == 'PAID';
+  bool get isUpcoming => isActive && (departsAt == null || departsAt!.isAfter(DateTime.now()));
+  String get refundSummary => refundPolicyText(refundTiers);
 }
+
+class StopTime {
+  StopTime({required this.name, required this.city, required this.at, required this.time});
+
+  factory StopTime.fromJson(Map<String, dynamic> j) => StopTime(
+        name: j['name'] as String? ?? '',
+        city: j['city'] as String? ?? '',
+        at: j['at'] == null ? null : DateTime.parse(j['at'] as String).toLocal(),
+        time: j['time'] as String? ?? '',
+      );
+
+  final String name;
+  final String city;
+  final DateTime? at;
+  final String time;
+}
+
+class TicketInfo {
+  TicketInfo({required this.seatLabel, this.ticketCode = '', this.passengerName = '', this.status = '', this.farePaise});
+
+  factory TicketInfo.fromJson(Map<String, dynamic> j) => TicketInfo(
+        seatLabel: j['seatLabel'] as String? ?? '',
+        ticketCode: j['ticketCode'] as String? ?? '',
+        passengerName: j['passengerName'] as String? ?? '',
+        status: j['status'] as String? ?? '',
+        farePaise: (j['farePaise'] as num?)?.toInt(),
+      );
+
+  final String seatLabel;
+  final String ticketCode;
+  final String passengerName;
+  final String status;
+  final int? farePaise;
+}
+
+const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/// "Fri, 27 Nov 2026"
+String longDate(DateTime t) => '${_weekdays[t.weekday - 1]}, ${t.day} ${_months[t.month - 1]} ${t.year}';
+
+/// "Fri 27 Nov"
+String shortDate(DateTime t) => '${_weekdays[t.weekday - 1]} ${t.day} ${_months[t.month - 1]}';
+
+/// "06:05"
+String clock(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+/// "1 h 25 min", "12 min"
+String duration(Duration d) {
+  final m = d.inMinutes;
+  return m < 60 ? '$m min' : '${m ~/ 60} h ${m % 60} min';
+}
+
+/// The GST inside a GST-inclusive price, at [ratePercent].
+int gstIncluded(int totalPaise, double ratePercent) => (totalPaise - totalPaise / (1 + ratePercent / 100)).round();
 
 class WalletSummary {
   WalletSummary({required this.balancePaise, required this.history});
@@ -270,6 +360,13 @@ class ChargingSessionView {
     this.capturedPaise,
     this.releasedPaise,
     this.paymentStatus,
+    this.stoppedAt,
+    this.city = '',
+    this.operator = '',
+    this.connectorPowerKw,
+    this.current = '',
+    this.orderId,
+    this.paymentRef,
   });
 
   factory ChargingSessionView.fromJson(Map<String, dynamic> j) => ChargingSessionView(
@@ -291,6 +388,13 @@ class ChargingSessionView {
         capturedPaise: ((j['payment'] as Map<String, dynamic>?)?['capturedPaise'] as num?)?.toInt(),
         releasedPaise: ((j['payment'] as Map<String, dynamic>?)?['releasedPaise'] as num?)?.toInt(),
         paymentStatus: (j['payment'] as Map<String, dynamic>?)?['status'] as String?,
+        stoppedAt: j['stoppedAt'] == null ? null : DateTime.parse(j['stoppedAt'] as String),
+        city: j['city'] as String? ?? '',
+        operator: j['operator'] as String? ?? '',
+        connectorPowerKw: (j['connectorPowerKw'] as num?)?.toDouble(),
+        current: j['current'] as String? ?? '',
+        orderId: j['orderId'] as String?,
+        paymentRef: j['paymentRef'] as String?,
       );
 
   final String id;
@@ -311,6 +415,16 @@ class ChargingSessionView {
   final int? capturedPaise;
   final int? releasedPaise;
   final String? paymentStatus;
+  final DateTime? stoppedAt;
+  final String city;
+  final String operator;
+  final double? connectorPowerKw;
+  final String current;
+  final String? orderId;
+  final String? paymentRef;
+
+  /// Short receipt number shown to the customer, from the order id.
+  String? get receiptNo => orderId == null ? null : 'EVG-${orderId!.replaceAll('-', '').substring(0, 8).toUpperCase()}';
 
   bool get isActive => status == 'ACTIVE';
   bool get paidByUpi => paymentMethod == 'upi';
@@ -363,10 +477,12 @@ class SeatMap {
   final List<RefundTier> refundTiers;
 
   /// "Cancel 24h+ before: 90% back · 6h+: 50% back · closes 6h before"
-  String get refundSummary {
-    if (refundTiers.isEmpty) return '';
-    String h(double v) => v == v.roundToDouble() ? '${v.toInt()}h' : '${v}h';
-    final parts = [for (final t in refundTiers) '${h(t.minHoursBefore)}+ before: ${t.refundPercent}% back'];
-    return 'Cancel ${parts.join(' · ')}. Closes ${h(refundTiers.last.minHoursBefore)} before departure.';
-  }
+  String get refundSummary => refundPolicyText(refundTiers);
+}
+
+String refundPolicyText(List<RefundTier> refundTiers) {
+  if (refundTiers.isEmpty) return '';
+  String h(double v) => v == v.roundToDouble() ? '${v.toInt()}h' : '${v}h';
+  final parts = [for (final t in refundTiers) '${h(t.minHoursBefore)}+ before: ${t.refundPercent}% back'];
+  return 'Cancel ${parts.join(' · ')}. Closes ${h(refundTiers.last.minHoursBefore)} before departure.';
 }

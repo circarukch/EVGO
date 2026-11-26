@@ -8,6 +8,7 @@ class FakeBackend {
   int balancePaise = 0;
   final held = <String>{};
   final booked = <String>{};
+  bool cancelled = false;
   final history = <Map<String, dynamic>>[];
   bool loggedIn = false;
 
@@ -64,17 +65,34 @@ class FakeBackend {
       held.addAll(seats);
       return json({'orderId': 'O1', 'totalPaise': 54900 * seats.length}, 201);
     }
+    if (path == '/bookings/O1aaaaaa-0000/cancel') {
+      cancelled = true;
+      balancePaise += 49410;
+      return json({'orderId': 'O1aaaaaa-0000', 'refundPaise': 49410, 'balancePaise': balancePaise}, 201);
+    }
     if (path == '/bookings' && req.method == 'GET') {
       return json([
         if (booked.isNotEmpty)
           {
-            'orderId': 'O1',
-            'status': 'PAID',
+            'orderId': 'O1aaaaaa-0000',
+            'status': cancelled ? 'PARTIALLY_REFUNDED' : 'PAID',
             'totalPaise': 54900 * booked.length,
+            'bookedAt': '2026-11-26T09:00:00Z',
             'route': 'Guntur to Hyderabad',
+            'departsAt': '2026-12-04T00:30:00Z',
             'departs': '06:00',
+            'boarding': {'name': 'Guntur Bus Stand', 'city': 'Guntur', 'at': '2026-12-04T00:30:00Z', 'time': '06:00'},
+            'dropping': {'name': 'MGBS', 'city': 'Hyderabad', 'at': '2026-12-04T06:00:00Z', 'time': '11:30'},
+            'operator': 'EVGO Bus Lines',
+            'bus': {'registration': 'AP 07 EV 1234'},
+            'payment': {'method': 'wallet', 'amountPaise': 54900 * booked.length},
+            'refundPaise': cancelled ? 49410 : 0,
+            'cancellationPolicy': [
+              {'minHoursBefore': 24, 'refundPercent': 90},
+              {'minHoursBefore': 6, 'refundPercent': 50},
+            ],
             'tickets': [
-              for (final s in booked) {'seatLabel': s}
+              for (final s in booked) {'seatLabel': s, 'ticketCode': 'TK$s', 'passengerName': 'Priya', 'status': 'CONFIRMED', 'farePaise': 54900}
             ]
           }
       ]);

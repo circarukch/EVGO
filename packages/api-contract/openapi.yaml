@@ -270,10 +270,15 @@ paths:
               schema: { type: object, properties: { orderId: { type: string }, status: { type: string }, totalPaise: { type: integer }, expiresAt: { type: string, format: date-time }, seats: { type: array, items: { type: string } } } }
         "409": { description: A seat is already held or booked }
     get:
-      summary: My bus bookings
+      summary: My bus bookings, with everything the ticket screen shows
       security: [{ bearer: [] }]
       responses:
-        "200": { description: Bookings with tickets }
+        "200":
+          description: >
+            Bookings newest first. Each has orderId, status, totalPaise, bookedAt, route, departsAt, departs (IST HH:mm),
+            boarding and dropping ({ name, city, at, time }), operator, bus ({ registration } or null),
+            payment ({ method, amountPaise, at } or null), refundPaise, cancellationPolicy (refund tiers),
+            and tickets ({ ticketCode, seatLabel, passengerName, status, farePaise }).
   /bookings/{id}/pay:
     post:
       summary: Pay for held seats from the wallet and issue tickets
@@ -357,6 +362,12 @@ components:
         costPaise: { type: integer }
         balancePaise: { type: integer, description: Only on the stop response of a wallet session }
         maxCostPaise: { type: integer }
+        city: { type: string }
+        operator: { type: string }
+        connectorPowerKw: { type: [number, "null"] }
+        current: { type: string, enum: [AC, DC] }
+        orderId: { type: [string, "null"], description: Set once billed; doubles as the receipt number }
+        paymentRef: { type: [string, "null"], description: Gateway reference of the UPI payment }
         payment:
           type: object
           properties:
