@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: EVGO API
-  version: 0.2.0
+  version: 0.3.0
   description: >
     Single API for the EVGO customer apps (Flutter mobile, Next.js web) and the
     operator console. Typed clients for Dart and TypeScript are generated from
@@ -171,6 +171,7 @@ paths:
             application/json:
               schema: { type: object, properties: { orderId: { type: string }, status: { type: string }, totalPaise: { type: integer }, expiresAt: { type: string, format: date-time }, seats: { type: array, items: { type: string } } } }
         "409": { description: A seat is already held or booked }
+        "502": { description: A partner bus inventory API did not respond }
     get:
       summary: My bus bookings
       security: [{ bearer: [] }]
@@ -182,10 +183,11 @@ paths:
       security: [{ bearer: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses:
-        "201": { description: Paid. Returns tickets and new balance. }
+        "201": { description: "Paid. Returns tickets and new balance. Partner trips also return the partner's pnr." }
         "402": { description: "Wallet short. Body has balancePaise and shortfallPaise." }
         "409": { description: Already paid or cancelled }
         "410": { description: Hold expired }
+        "502": { description: "A partner could not confirm. The wallet charge has been reversed." }
   /bookings/{id}/hold:
     delete:
       summary: Release unpaid held seats
@@ -195,7 +197,7 @@ paths:
         "200": { description: Released }
   /bookings/{id}/cancel:
     post:
-      summary: "Cancel a paid booking. Refund to wallet: 90% at 24h or more before departure, 50% at 6 to 24h, closed under 6h."
+      summary: "Cancel a paid booking. Refund to wallet under the operator's rules (EVGO trips: set per operator in the console; partner trips: the partner decides)."
       security: [{ bearer: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses:
@@ -225,9 +227,11 @@ components:
         lng: { type: number }
     TripSummary:
       type: object
-      required: [id, operator, from, to, departs, arrives, busType, seatsLeft, fareInr, chargersAtBoarding]
+      required: [id, provider, operator, from, to, departs, arrives, busType, seatsLeft, fareInr, chargersAtBoarding]
       properties:
-        id: { type: string }
+        id: { type: string, description: 'EVGO trip uuid, or "p.<provider>.<ref>" for a partner trip' }
+        provider: { type: string, example: evgo, description: '"evgo" for EVGO-run trips, else the partner inventory provider id' }
+        electric: { type: [boolean, "null"], description: Whether the bus is electric (null when the partner does not say) }
         operator: { type: string }
         from: { type: string }
         to: { type: string }

@@ -11,8 +11,9 @@ describe("Catalog", () => {
 
   it("finds upcoming Guntur to Hyderabad trips with seats, fares and chargers at boarding", async () => {
     const res = await request(app.getHttpServer()).get("/v1/trips?from=Guntur&to=Hyderabad").expect(200);
-    expect(res.body.length).toBeGreaterThanOrEqual(40);
-    const first = res.body[0];
+    const own = res.body.filter((t: { provider: string }) => t.provider === "evgo");
+    expect(own.length).toBeGreaterThanOrEqual(40);
+    const first = own[0];
     expect(first.from).toBe("Guntur EVGO Hub");
     expect(first.to).toBe("Hyderabad LB Nagar");
     expect(first.chargersAtBoarding).toBe(2); // the fleet-only depot charger is not counted
@@ -21,7 +22,17 @@ describe("Catalog", () => {
 
   it("supports boarding at an intermediate stop", async () => {
     const res = await request(app.getHttpServer()).get("/v1/trips?from=Vijayawada&to=Hyderabad").expect(200);
-    expect(res.body[0].from).toBe("Vijayawada Benz Circle");
+    expect(res.body[0].from).toBe("Vijayawada Benz Circle"); // the mock partner only runs Guntur to Hyderabad
+  });
+
+  it("lists partner trips alongside EVGO's own, in departure order", async () => {
+    const res = await request(app.getHttpServer()).get("/v1/trips?from=Guntur&to=Hyderabad").expect(200);
+    const partner = res.body.filter((t: { provider: string }) => t.provider === "mock-partner");
+    expect(partner.length).toBeGreaterThan(0);
+    expect(partner[0]).toMatchObject({ electric: false, chargersAtBoarding: 0 });
+    expect(partner[0].id).toMatch(/^p\.mock-partner\./);
+    const times = res.body.map((t: { departsAt: string }) => new Date(t.departsAt).getTime());
+    expect(times).toEqual([...times].sort((a, b) => a - b));
   });
 
   it("does not sell the reverse direction", async () => {

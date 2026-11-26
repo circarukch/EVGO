@@ -6,6 +6,8 @@ import { randomUUID } from "node:crypto";
 export const USER_WALLET = "user_wallet";
 export const GATEWAY_CLEARING = "gateway_clearing";
 export const operatorPayable = (orgId: string) => `operator_payable:${orgId}`;
+/** Money owed to a partner bus inventory provider for tickets it issued. */
+export const partnerPayable = (providerId: string) => `partner_payable:${providerId}`;
 
 export interface JournalLine {
   account: string;

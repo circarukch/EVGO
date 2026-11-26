@@ -17,6 +17,7 @@ import { lockWallet, operatorPayable, postJournal, USER_WALLET, walletBalance } 
 import { WalletService } from "../wallet/wallet.service";
 import { cutoffHours, refundShare } from "./cancellation";
 import { CancellationPolicyService } from "./cancellation-policy.service";
+import { PartnerBookingService } from "./partner-booking.service";
 
 export interface SeatRequest {
   seatLabel: string;
@@ -42,9 +43,11 @@ export class BookingService {
     private readonly db: PrismaService,
     private readonly wallets: WalletService,
     private readonly policies: CancellationPolicyService,
+    private readonly partners: PartnerBookingService,
   ) {}
 
   async seats(tripId: string) {
+    if (this.partners.isPartnerTrip(tripId)) return this.partners.seats(tripId);
     const trip = await this.db.trip.findUnique({
       where: { id: tripId },
       include: { inventory: { orderBy: { seatLabel: "asc" } }, schedule: { include: { route: true } } },
@@ -72,6 +75,7 @@ export class BookingService {
     const labels = seats.map((s) => s.seatLabel);
     if (new Set(labels).size !== labels.length) throw new BadRequestException("Each seat can be chosen once");
     if (seats.some((s) => !s.passengerName?.trim())) throw new BadRequestException("Every seat needs a passenger name");
+    if (this.partners.isPartnerTrip(tripId)) return this.partners.hold(userId, tripId, seats);
 
     const trip = await this.db.trip.findUnique({ where: { id: tripId } });
     if (!trip) throw new NotFoundException("Trip not found");
@@ -101,6 +105,7 @@ export class BookingService {
 
   /** Pay for held seats from the wallet and issue tickets. */
   async payWithWallet(userId: string, orderId: string) {
+    if (await this.partners.ownsOrder(orderId)) return this.partners.payWithWallet(userId, orderId);
     const wallet = await this.wallets.walletFor(userId);
     return this.db.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
@@ -167,6 +172,7 @@ export class BookingService {
 
   /** Let go of held seats without paying. */
   async releaseHold(userId: string, orderId: string) {
+    if (await this.partners.ownsOrder(orderId)) return this.partners.releaseHold(userId, orderId);
     return this.db.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new NotFoundException("Booking not found");
@@ -183,6 +189,7 @@ export class BookingService {
 
   /** Cancel a paid booking and refund to the wallet under the cancellation policy. */
   async cancel(userId: string, orderId: string) {
+    if (await this.partners.ownsOrder(orderId)) return this.partners.cancel(userId, orderId);
     const wallet = await this.wallets.walletFor(userId);
     return this.db.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: { include: { booking: true } } } });
@@ -224,10 +231,33 @@ export class BookingService {
   async myBookings(userId: string) {
     const orders = await this.db.order.findMany({
       where: { userId, status: { in: ["PAID", "REFUNDED", "PARTIALLY_REFUNDED"] }, items: { some: { type: "BUS_SEAT" } } },
-      include: { items: { include: { booking: { include: { trip: { include: { schedule: { include: { route: true } } } } } } } } },
+      include: {
+        items: { include: { partnerBooking: true, booking: { include: { trip: { include: { schedule: { include: { route: true } } } } } } } },
+      },
       orderBy: { createdAt: "desc" },
     });
-    return orders.map((o) => {
+    // An order mid-confirmation with a partner has no ticket record yet; show it once it does.
+    return orders.filter((o) => o.items[0].partnerBooking || o.items[0].booking).map((o) => {
+      const partner = o.items[0].partnerBooking;
+      if (partner) {
+        return {
+          orderId: o.id,
+          status: o.status,
+          totalPaise: o.totalPaise,
+          route: partner.routeName,
+          operator: partner.operator,
+          provider: partner.providerId,
+          pnr: partner.pnr,
+          departsAt: partner.departsAt,
+          departs: istClock(partner.departsAt),
+          tickets: o.items.map((i) => ({
+            ticketCode: i.partnerBooking?.ticketNo,
+            seatLabel: i.partnerBooking?.seatLabel,
+            passengerName: i.partnerBooking?.passengerName,
+            status: i.partnerBooking?.status,
+          })),
+        };
+      }
       const trip = o.items[0].booking?.trip;
       return {
         orderId: o.id,

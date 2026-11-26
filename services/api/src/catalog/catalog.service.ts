@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { ConnectorType, Prisma, VehicleSegment } from "@prisma/client";
 import { istClock } from "../common/time";
+import { PartnerBookingService } from "../booking/partner-booking.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 const SEGMENTS: Record<string, VehicleSegment> = {
@@ -28,9 +29,18 @@ type ChargerRow = Prisma.ChargerGetPayload<{ include: typeof chargerInclude }>;
 
 @Injectable()
 export class CatalogService {
-  constructor(private readonly db: PrismaService) {}
+  constructor(
+    private readonly db: PrismaService,
+    private readonly partners: PartnerBookingService,
+  ) {}
 
+  /** EVGO's own trips plus every switched-on partner's, in departure order. */
   async searchTrips(fromCity: string, toCity: string) {
+    const [own, partner] = await Promise.all([this.searchOwnTrips(fromCity, toCity), this.partners.searchTrips(fromCity, toCity)]);
+    return [...own, ...partner].sort((a, b) => a.departsAt.getTime() - b.departsAt.getTime());
+  }
+
+  private async searchOwnTrips(fromCity: string, toCity: string) {
     const now = new Date();
     const trips = await this.db.trip.findMany({
       where: { status: "scheduled", departsAt: { gt: now } },
@@ -54,6 +64,7 @@ export class CatalogService {
       const chargersAtBoarding = await this.db.charger.count({ where: { site: { placeId: from.placeId, access: "public" } } });
       results.push({
         id: t.id,
+        provider: "evgo",
         operator: t.schedule.route.org.name,
         from: from.place.name,
         to: to.place.name,
@@ -62,6 +73,7 @@ export class CatalogService {
         departs: istClock(departsAt),
         arrives: istClock(arrivesAt),
         busType: t.bus?.layout.name ?? "e-bus",
+        electric: true as boolean | null,
         seatsLeft: free.length,
         fareInr: Math.min(...t.inventory.map((s) => s.farePaise)) / 100,
         chargersAtBoarding,
